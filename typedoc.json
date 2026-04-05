@@ -1,0 +1,13 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "name": "Jira Data Center API Client",
+  "readme": "none",
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/ElJijuna/JiraDataCenterApiClient",
+    "npm": "https://www.npmjs.com/package/jira-datacenter-api-client"
+  }
+}
