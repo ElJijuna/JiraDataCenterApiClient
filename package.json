@@ -47,5 +47,6 @@
     "tsup": "^8.4.0",
     "typedoc": "^0.27.9",
     "typescript": "^5.8.3"
-  }
+  },
+  "author": "pilmee <pilmee@gmail.com> (https://github.com/ElJijuna)"
 }
