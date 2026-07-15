@@ -37,12 +37,8 @@ export interface UserActivityParams {
   fields?: string[];
   /** Fields to expand (e.g. `['changelog']`) */
   expand?: string[];
-  /** Whether to validate the JQL query (`'strict'`, `'warn'`, `'none'`) */
-  validateQuery?: 'strict' | 'warn' | 'none';
-  /** Whether to return field IDs instead of field names */
-  fieldsByKeys?: boolean;
-  /** Issue properties to include */
-  properties?: string[];
+  /** Whether Jira should validate the JQL query */
+  validateQuery?: boolean;
 }
 
 /**

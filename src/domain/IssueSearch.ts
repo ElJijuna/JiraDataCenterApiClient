@@ -8,19 +8,33 @@ export interface SearchParams {
   jql?: string;
   /** Index of the first result (0-based) */
   startAt?: number;
-  /** Maximum number of results to return (max 50 by default, up to 100) */
+  /** Maximum number of results to return. Jira Data Center defaults to 50; the server cap is configurable. */
   maxResults?: number;
-  /** Whether to validate the JQL query (`'strict'`, `'warn'`, `'none'`) */
-  validateQuery?: 'strict' | 'warn' | 'none';
+  /** Whether Jira should validate the JQL query. */
+  validateQuery?: boolean;
   /** Comma-separated list of fields to include.
    * Use `'*all'` for all fields, `'*navigable'` for navigable fields (default). */
   fields?: string;
   /** Fields to expand (e.g. `'changelog,renderedFields,names'`) */
   expand?: string;
-  /** List of issue properties to return */
-  properties?: string;
-  /** Whether to return field IDs instead of field names */
-  fieldsByKeys?: boolean;
+}
+
+/**
+ * Body for `POST /rest/api/latest/search`.
+ */
+export interface SearchPostParams {
+  /** JQL query string */
+  jql?: string;
+  /** Index of the first result (0-based) */
+  startAt?: number;
+  /** Maximum number of results to return. Use `0` for count-only searches. */
+  maxResults?: number;
+  /** Issue fields to include in the response */
+  fields?: string[];
+  /** Fields to expand (e.g. `['changelog', 'names']`) */
+  expand?: string[];
+  /** Whether Jira should validate the JQL query. */
+  validateQuery?: boolean;
 }
 
 /**
@@ -35,6 +49,8 @@ export interface JiraSearchResponse {
   maxResults: number;
   /** Total number of issues matching the query */
   total: number;
+  /** Search result window limit exposed by Jira Data Center. */
+  maxResultWindow?: number;
   /** Issues in this page */
   issues: JiraIssue[];
   /** Warning messages from the JQL validator */

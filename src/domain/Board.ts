@@ -65,6 +65,50 @@ export interface JiraBoard {
 }
 
 /**
+ * Board estimation configuration.
+ */
+export interface JiraBoardEstimation {
+  type: string;
+  field?: {
+    fieldId: string;
+    displayName: string;
+  };
+}
+
+/**
+ * Board column status mapping.
+ */
+export interface JiraBoardColumn {
+  name: string;
+  statuses: Array<{
+    id: string;
+    self: string;
+  }>;
+  min?: number;
+  max?: number;
+}
+
+/**
+ * Configuration for a Jira Software board.
+ */
+export interface JiraBoardConfiguration {
+  id: number;
+  name: string;
+  type: 'scrum' | 'kanban';
+  self: string;
+  filter: JiraBoardFilter;
+  location?: JiraBoard['location'];
+  estimation?: JiraBoardEstimation;
+  ranking?: {
+    rankCustomFieldId: number;
+  };
+  columnConfig?: {
+    columns: JiraBoardColumn[];
+    constraintType?: string;
+  };
+}
+
+/**
  * Query parameters for listing issues on a board.
  */
 export interface BoardIssuesParams {

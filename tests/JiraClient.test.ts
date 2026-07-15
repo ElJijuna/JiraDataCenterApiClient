@@ -4,7 +4,12 @@ import type { JiraIssue, JiraIssueFields } from '../src/domain/Issue';
 import type { JiraProject } from '../src/domain/Project';
 import type { JiraUser } from '../src/domain/User';
 import type { JiraComment, JiraCommentResponse } from '../src/domain/Comment';
-import type { JiraWorklog, JiraWorklogResponse } from '../src/domain/Worklog';
+import type {
+  JiraWorklog,
+  JiraWorklogDeletedResponse,
+  JiraWorklogResponse,
+  JiraWorklogUpdatedResponse,
+} from '../src/domain/Worklog';
 import type { JiraChangelogResponse } from '../src/domain/Changelog';
 import type { JiraTransition } from '../src/domain/Transition';
 import type { JiraRemoteLink } from '../src/domain/RemoteLink';
@@ -357,9 +362,11 @@ describe('JiraClient', () => {
           items: [{ field: 'status', fieldtype: 'jira', fromString: 'Open', toString: 'In Progress' }],
         }],
       };
-      mockOk(changelogResponse);
+      mockOk({ ...mockIssue, changelog: changelogResponse });
       const result = await client.issue('PROJ-42').changelog();
-      expect(fetchMock).toHaveBeenCalledWith(`${BASE_API}/issue/PROJ-42/changelog`, expect.any(Object));
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain(`${BASE_API}/issue/PROJ-42?`);
+      expect(url).toContain('expand=changelog');
       expect(result.histories).toHaveLength(1);
     });
 
@@ -562,6 +569,106 @@ describe('JiraClient', () => {
     });
   });
 
+  // ─── worklogs ────────────────────────────────────────────────────────────
+
+  describe('global worklogs', () => {
+    it('calls worklogsUpdated()', async () => {
+      const response: JiraWorklogUpdatedResponse = {
+        values: [{ worklogId: 20001, issueId: 10042, updatedTime: 1710000000000 }],
+        since: 1709999999000,
+        until: 1710000000000,
+        lastPage: true,
+      };
+      mockOk(response);
+      const result = await client.worklogsUpdated({ since: 1709999999000 });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain(`${BASE_API}/worklog/updated?`);
+      expect(url).toContain('since=1709999999000');
+      expect(result.values).toHaveLength(1);
+    });
+
+    it('calls worklogsDeleted()', async () => {
+      const response: JiraWorklogDeletedResponse = {
+        values: [{ worklogId: 20001, deletedTime: 1710000000000 }],
+        since: 1709999999000,
+        until: 1710000000000,
+        lastPage: true,
+      };
+      mockOk(response);
+      await client.worklogsDeleted({ since: 1709999999000 });
+      const url = fetchMock.mock.calls[0][0] as string;
+      expect(url).toContain(`${BASE_API}/worklog/deleted?`);
+      expect(url).toContain('since=1709999999000');
+    });
+
+    it('calls worklogsList()', async () => {
+      mockOk([mockWorklog]);
+      const result = await client.worklogsList(['20001']);
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${BASE_API}/worklog/list`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toEqual({ ids: [20001] });
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  // ─── metrics ─────────────────────────────────────────────────────────────
+
+  describe('metrics', () => {
+    it('counts issues with maxResults 0', async () => {
+      mockOk({ ...mockSearchResponse, issues: [], total: 12, maxResults: 0 });
+      const result = await client.metrics.count({ jql: 'project = PROJ' });
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${BASE_API}/search`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toEqual({
+        jql: 'project = PROJ',
+        maxResults: 0,
+        fields: ['id'],
+      });
+      expect(result.total).toBe(12);
+    });
+
+    it('facets issue counts by field values', async () => {
+      mockOk({ ...mockSearchResponse, issues: [], total: 3, maxResults: 0 });
+      mockOk({ ...mockSearchResponse, issues: [], total: 5, maxResults: 0 });
+      const result = await client.metrics.facet({
+        field: 'issuetype',
+        values: ['Bug', 'Story'],
+        projects: ['PROJ'],
+        jql: 'statusCategory != Done',
+        concurrency: 1,
+      });
+      expect(result.buckets.map((bucket) => bucket.total)).toEqual([3, 5]);
+      const firstBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(firstBody.jql).toContain('project IN ("PROJ")');
+      expect(firstBody.jql).toContain('statusCategory != Done');
+      expect(firstBody.jql).toContain('issuetype = "Bug"');
+    });
+
+    it('counts user contribution dimensions', async () => {
+      mockOk({ ...mockSearchResponse, issues: [], total: 2, maxResults: 0 });
+      mockOk({ ...mockSearchResponse, issues: [], total: 4, maxResults: 0 });
+      const result = await client.metrics.userContributions('pilmee', {
+        include: ['created', 'updated'],
+        projects: ['PROJ'],
+        from: '2026-06-01',
+        to: '2026-06-30',
+        concurrency: 1,
+      });
+      expect(result.users).toEqual([{ username: 'pilmee', created: 2, updated: 4 }]);
+      const createdBody = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      const updatedBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      expect(createdBody.jql).toContain('creator = "pilmee"');
+      expect(createdBody.jql).toContain('created >= "2026-06-01"');
+      expect(updatedBody.jql).toContain('issuekey IN updatedBy("pilmee", "2026-06-01", "2026-06-30")');
+    });
+  });
+
   // ─── boards ──────────────────────────────────────────────────────────────
 
   describe('boards()', () => {
@@ -597,6 +704,20 @@ describe('JiraClient', () => {
       expect(url).toContain(`${BASE_AGILE}/board/42/sprint`);
       expect(url).toContain('state=active');
       expect(result.values).toHaveLength(1);
+    });
+
+    it('fetches board configuration', async () => {
+      mockOk({
+        id: 42,
+        self: `${BASE_AGILE}/board/42/configuration`,
+        name: 'PROJ Board',
+        type: 'scrum',
+        filter: { id: '10000', self: `${BASE_API}/filter/10000` },
+        estimation: { type: 'field', field: { fieldId: 'customfield_10016', displayName: 'Story Points' } },
+      });
+      const result = await client.board(42).configuration();
+      expect(fetchMock).toHaveBeenCalledWith(`${BASE_AGILE}/board/42/configuration`, expect.any(Object));
+      expect(result.estimation?.field?.fieldId).toBe('customfield_10016');
     });
 
     it('calls issues()', async () => {

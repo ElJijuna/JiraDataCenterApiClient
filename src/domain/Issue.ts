@@ -11,6 +11,7 @@ import type { JiraWorklogResponse } from './Worklog';
 import type { JiraProjectRef } from './Project';
 import type { JiraVotes } from './Vote';
 import type { JiraWatchers } from './Watcher';
+import type { JiraChangelogResponse } from './Changelog';
 
 /**
  * Query parameters for fetching an issue.
@@ -157,4 +158,6 @@ export interface JiraIssue {
   self: string;
   /** Issue fields */
   fields: JiraIssueFields;
+  /** Embedded changelog when requested with `expand=changelog` */
+  changelog?: JiraChangelogResponse;
 }

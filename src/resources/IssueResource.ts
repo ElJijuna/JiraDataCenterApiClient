@@ -151,16 +151,18 @@ export class IssueResource implements PromiseLike<JiraIssue> {
   /**
    * Fetches the changelog for this issue.
    *
-   * `GET /rest/api/latest/issue/{issueIdOrKey}/changelog`
+   * Jira Data Center exposes changelog through
+   * `GET /rest/api/latest/issue/{issueIdOrKey}?expand=changelog`.
    *
-   * @param params - Optional: `startAt`, `maxResults`
+   * @param params - Accepted for API compatibility; Jira Data Center returns the embedded changelog page.
    * @returns A paged response of changelog entries
    */
-  async changelog(params?: ChangelogParams): Promise<JiraChangelogResponse> {
-    return this.request<JiraChangelogResponse>(
-      `${this.basePath}/changelog`,
-      params as Record<string, string | number | boolean>,
+  async changelog(_params?: ChangelogParams): Promise<JiraChangelogResponse> {
+    const issue = await this.request<JiraIssue>(
+      this.basePath,
+      { expand: 'changelog' },
     );
+    return issue.changelog ?? { startAt: 0, maxResults: 0, total: 0, histories: [] };
   }
 
   /**

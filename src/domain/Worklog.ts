@@ -52,3 +52,65 @@ export interface JiraWorklogResponse {
   /** Total number of worklogs */
   total: number;
 }
+
+/**
+ * Query parameters for Jira's global updated/deleted worklog feeds.
+ */
+export interface WorklogSinceParams {
+  /** Epoch milliseconds cursor returned by a previous call, or an initial lower bound */
+  since?: number;
+}
+
+/**
+ * A worklog ID changed after the supplied cursor.
+ */
+export interface JiraWorklogUpdatedItem {
+  /** Worklog ID */
+  worklogId: number;
+  /** Issue ID containing the worklog */
+  issueId: number;
+  /** Epoch milliseconds when the worklog was updated */
+  updatedTime: number;
+}
+
+/**
+ * Response from `GET /rest/api/latest/worklog/updated`.
+ */
+export interface JiraWorklogUpdatedResponse {
+  /** Changed worklog IDs */
+  values: JiraWorklogUpdatedItem[];
+  /** Cursor for the next poll */
+  since: number;
+  /** Last update timestamp in the current page */
+  until: number;
+  /** URL for the next page, when Jira has more changes */
+  nextPage?: string;
+  /** Whether this is the last page */
+  lastPage?: boolean;
+}
+
+/**
+ * A deleted worklog ID after the supplied cursor.
+ */
+export interface JiraWorklogDeletedItem {
+  /** Worklog ID */
+  worklogId: number;
+  /** Epoch milliseconds when the worklog was deleted */
+  deletedTime: number;
+}
+
+/**
+ * Response from `GET /rest/api/latest/worklog/deleted`.
+ */
+export interface JiraWorklogDeletedResponse {
+  /** Deleted worklog IDs */
+  values: JiraWorklogDeletedItem[];
+  /** Cursor for the next poll */
+  since: number;
+  /** Last deletion timestamp in the current page */
+  until: number;
+  /** URL for the next page, when Jira has more changes */
+  nextPage?: string;
+  /** Whether this is the last page */
+  lastPage?: boolean;
+}

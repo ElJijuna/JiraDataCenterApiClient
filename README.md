@@ -9,8 +9,9 @@ A zero-dependency TypeScript client for the **Jira Data Center REST API** (and J
 ## Features
 
 - **Full TypeScript** — every request and response is fully typed
-- **Read-only** — covers all major GET endpoints for issues, projects, boards, sprints, users, and metadata
+- **Read-mostly** — covers major Jira Data Center read endpoints plus POST search/worklog helpers
 - **Chainable resources** — `jira.issue('PROJ-42').comments()` pattern
+- **Metrics helpers** — count/facet JQL buckets and lightweight user contribution activity
 - **Dual package** — ships CJS + ESM, works in Node.js and browsers
 - **Zero runtime dependencies** — uses native `fetch` and `URLSearchParams`
 - **Request events** — hook into every HTTP request for logging and monitoring
@@ -59,6 +60,9 @@ const sprints = await jira.board(42).sprints({ state: 'active' });
 
 // Get sprint issues
 const sprintIssues = await jira.board(42).sprint(10).issues();
+
+// Count issues without fetching pages
+const bugCount = await jira.metrics.count({ jql: 'project = PROJ AND issuetype = Bug' });
 ```
 
 ## Authentication
@@ -136,6 +140,7 @@ await jira.boards({ type: 'scrum', name: 'PROJ Board' });
 const board = await jira.board(42);
 
 // Board sub-resources
+await jira.board(42).configuration();
 await jira.board(42).sprints({ state: 'active' });
 await jira.board(42).issues({ jql: 'status = "In Progress"' });
 await jira.board(42).backlog({ maxResults: 50 });
@@ -158,6 +163,35 @@ await jira.userActivity(['pilmee', 'john'], {
   fields: ['summary', 'updated', 'status'],
   maxResults: 50,
 });
+```
+
+#### Metrics & Activity
+
+```typescript
+// Exact count via POST /search with maxResults: 0
+await jira.metrics.count({ jql: 'project = PROJ AND statusCategory != Done' });
+
+// Count issue buckets. Jira REST has no GROUP BY, so this runs one count query per value.
+await jira.metrics.facet({
+  field: 'issuetype',
+  values: ['Bug', 'Story', 'Task'],
+  projects: ['PROJ'],
+  from: '2026-06-01',
+  jql: 'statusCategory != Done',
+});
+
+// Lightweight contribution counts for Jira usernames/user keys.
+// Handy when Bitbucket slugs match Jira usernames.
+await jira.metrics.userContributions(['pilmee', 'john'], {
+  projects: ['PROJ'],
+  from: '-30d',
+  include: ['created', 'updated', 'worklogIssues'],
+});
+
+// Incremental worklog feed for exact time-spent pipelines.
+const changed = await jira.worklogsUpdated({ since: 1710000000000 });
+const worklogs = await jira.worklogsList(changed.values.map((item) => item.worklogId));
+await jira.worklogsDeleted({ since: 1710000000000 });
 ```
 
 #### Metadata

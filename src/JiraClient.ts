@@ -3,6 +3,7 @@ import { JiraApiError } from './errors/JiraApiError';
 import { IssueResource, type RequestFn, type RequestBodyFn } from './resources/IssueResource';
 import { ProjectResource } from './resources/ProjectResource';
 import { BoardResource } from './resources/BoardResource';
+import { MetricsResource } from './resources/MetricsResource';
 import type { JiraIssue } from './domain/Issue';
 import type { JiraProject, ProjectsParams } from './domain/Project';
 import type { JiraUser, UserActivityParams, UserSearchParams } from './domain/User';
@@ -13,8 +14,14 @@ import type { JiraField } from './domain/Field';
 import type { JiraFilter } from './domain/Filter';
 import type { JiraIssueLinkType } from './domain/IssueLink';
 import type { JiraBoard, BoardsParams } from './domain/Board';
-import type { JiraSearchResponse, SearchParams } from './domain/IssueSearch';
+import type { JiraSearchResponse, SearchParams, SearchPostParams } from './domain/IssueSearch';
 import type { PagedResponse } from './domain/Pagination';
+import type {
+  JiraWorklog,
+  JiraWorklogDeletedResponse,
+  JiraWorklogUpdatedResponse,
+  WorklogSinceParams,
+} from './domain/Worklog';
 
 /**
  * Payload emitted on every HTTP request made by {@link JiraClient}.
@@ -110,6 +117,8 @@ export class JiraClient {
   private readonly apiPath: string;
   private readonly agileApiPath: string;
   private readonly listeners: Map<keyof JiraClientEvents, JiraClientEvents[keyof JiraClientEvents][]> = new Map();
+  /** Lightweight issue/user/project metrics derived from Jira Data Center REST and JQL. */
+  readonly metrics: MetricsResource;
 
   /**
    * @param options - Connection and authentication options
@@ -119,6 +128,7 @@ export class JiraClient {
     this.security = new Security(apiUrl, user, token);
     this.apiPath = apiPath.replace(/^\/|\/$/g, '');
     this.agileApiPath = agileApiPath.replace(/^\/|\/$/g, '');
+    this.metrics = new MetricsResource((body) => this.searchPost(body));
   }
 
   /**
@@ -400,6 +410,46 @@ export class JiraClient {
     });
   }
 
+  // ─── Worklogs ────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches worklog IDs updated after a cursor.
+   *
+   * `GET /rest/api/latest/worklog/updated`
+   *
+   * Use with {@link worklogsList} to hydrate changed worklogs for activity metrics.
+   */
+  async worklogsUpdated(params?: WorklogSinceParams): Promise<JiraWorklogUpdatedResponse> {
+    return this.request<JiraWorklogUpdatedResponse>(
+      '/worklog/updated',
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches worklog IDs deleted after a cursor.
+   *
+   * `GET /rest/api/latest/worklog/deleted`
+   */
+  async worklogsDeleted(params?: WorklogSinceParams): Promise<JiraWorklogDeletedResponse> {
+    return this.request<JiraWorklogDeletedResponse>(
+      '/worklog/deleted',
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches worklogs by ID.
+   *
+   * `POST /rest/api/latest/worklog/list`
+   */
+  async worklogsList(ids: Array<string | number>): Promise<JiraWorklog[]> {
+    return this.requestPost<JiraWorklog[]>(
+      '/worklog/list',
+      { ids: ids.map((id) => Number(id)) },
+    );
+  }
+
   // ─── Boards (Agile) ──────────────────────────────────────────────────────────
 
   /**
@@ -578,16 +628,7 @@ export class JiraClient {
    * });
    * ```
    */
-  async searchPost(body: {
-    jql?: string;
-    startAt?: number;
-    maxResults?: number;
-    fields?: string[];
-    expand?: string[];
-    validateQuery?: 'strict' | 'warn' | 'none';
-    fieldsByKeys?: boolean;
-    properties?: string[];
-  }): Promise<JiraSearchResponse> {
+  async searchPost(body: SearchPostParams): Promise<JiraSearchResponse> {
     return this.requestPost<JiraSearchResponse>('/search', body);
   }
 

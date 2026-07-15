@@ -1,4 +1,4 @@
-import type { JiraBoard, BoardIssuesParams } from '../domain/Board';
+import type { JiraBoard, BoardIssuesParams, JiraBoardConfiguration } from '../domain/Board';
 import type { JiraSprint, SprintsParams } from '../domain/Sprint';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
 import type { PagedResponse } from '../domain/Pagination';
@@ -62,6 +62,21 @@ export class BoardResource implements PromiseLike<JiraBoard> {
    */
   async get(): Promise<JiraBoard> {
     return this.request<JiraBoard>(this.basePath, undefined, { apiPath: this.agileApiPath });
+  }
+
+  /**
+   * Fetches this board's configuration, including columns and estimation field.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/configuration`
+   *
+   * Useful for deriving sprint velocity, cycle time, and workflow-column metrics.
+   */
+  async configuration(): Promise<JiraBoardConfiguration> {
+    return this.request<JiraBoardConfiguration>(
+      `${this.basePath}/configuration`,
+      undefined,
+      { apiPath: this.agileApiPath },
+    );
   }
 
   /**
