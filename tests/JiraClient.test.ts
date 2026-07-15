@@ -520,6 +520,48 @@ describe('JiraClient', () => {
     });
   });
 
+  describe('userActivity()', () => {
+    it('searches activity for one user using updatedBy JQL', async () => {
+      mockOk(mockSearchResponse);
+      const result = await client.userActivity('pilmee', {
+        from: '-30d',
+        fields: ['summary', 'updated', 'status'],
+        maxResults: 25,
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${BASE_API}/search`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toEqual({
+        jql: 'issuekey IN updatedBy("pilmee", "-30d")',
+        fields: ['summary', 'updated', 'status'],
+        maxResults: 25,
+      });
+      expect(result.issues).toHaveLength(1);
+    });
+
+    it('searches activity for many users and combines extra JQL', async () => {
+      mockOk(mockSearchResponse);
+      await client.userActivity(['pilmee', 'john.smith'], {
+        from: '2024-01-01',
+        to: '2024-01-31',
+        jql: 'project = PROJ',
+        startAt: 50,
+      });
+      const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(body).toEqual({
+        jql: '(issuekey IN updatedBy("pilmee", "2024-01-01", "2024-01-31") OR issuekey IN updatedBy("john.smith", "2024-01-01", "2024-01-31")) AND (project = PROJ)',
+        startAt: 50,
+      });
+    });
+
+    it('throws when no username is provided', async () => {
+      await expect(client.userActivity(['', '   '])).rejects.toThrow(TypeError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── boards ──────────────────────────────────────────────────────────────
 
   describe('boards()', () => {

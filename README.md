@@ -151,6 +151,13 @@ await jira.board(42).sprint(10).issues({ maxResults: 100 });
 await jira.currentUser();
 await jira.user('pilmee');
 await jira.users({ username: 'john', maxResults: 10 });
+
+// Find issues updated by one or more users, useful when Bitbucket slugs match Jira usernames
+await jira.userActivity(['pilmee', 'john'], {
+  from: '-30d',
+  fields: ['summary', 'updated', 'status'],
+  maxResults: 50,
+});
 ```
 
 #### Metadata

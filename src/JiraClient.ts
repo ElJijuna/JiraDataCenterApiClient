@@ -5,7 +5,7 @@ import { ProjectResource } from './resources/ProjectResource';
 import { BoardResource } from './resources/BoardResource';
 import type { JiraIssue } from './domain/Issue';
 import type { JiraProject, ProjectsParams } from './domain/Project';
-import type { JiraUser, UserSearchParams } from './domain/User';
+import type { JiraUser, UserActivityParams, UserSearchParams } from './domain/User';
 import type { JiraIssueType } from './domain/IssueType';
 import type { JiraPriority } from './domain/Priority';
 import type { JiraStatus } from './domain/Status';
@@ -352,6 +352,54 @@ export class JiraClient {
     return this.request<JiraUser>('/myself');
   }
 
+  /**
+   * Searches for issues updated by one or more users.
+   *
+   * This uses Jira's `updatedBy()` JQL function, which is useful for deriving
+   * activity from Bitbucket slugs when they match Jira usernames.
+   *
+   * `POST /rest/api/latest/search`
+   *
+   * @param usernames - A Jira username, user key, or Bitbucket slug that maps to one
+   * @param params - Optional date bounds, extra JQL filters, pagination, and fields
+   * @returns A search response containing issues touched by the user(s)
+   *
+   * @example
+   * ```typescript
+   * const activity = await jira.userActivity(['pilmee', 'asmith'], {
+   *   from: '-30d',
+   *   fields: ['summary', 'updated', 'status'],
+   * });
+   * ```
+   */
+  async userActivity(
+    usernames: string | string[],
+    params: UserActivityParams = {},
+  ): Promise<JiraSearchResponse> {
+    const { from, to, jql, ...searchParams } = params;
+    const names = (Array.isArray(usernames) ? usernames : [usernames])
+      .map((username) => username.trim())
+      .filter((username) => username.length > 0);
+
+    if (names.length === 0) {
+      throw new TypeError('At least one username is required to search user activity');
+    }
+
+    const activityJql = names
+      .map((username) => `issuekey IN updatedBy(${[
+        quoteJqlString(username),
+        from ? quoteJqlString(from) : undefined,
+        to ? quoteJqlString(to) : undefined,
+      ].filter(Boolean).join(', ')})`)
+      .join(' OR ');
+    const combinedJql = jql ? `(${activityJql}) AND (${jql})` : activityJql;
+
+    return this.searchPost({
+      ...searchParams,
+      jql: combinedJql,
+    });
+  }
+
   // ─── Boards (Agile) ──────────────────────────────────────────────────────────
 
   /**
@@ -604,4 +652,8 @@ function buildUrl(base: string, params?: Record<string, string | number | boolea
   if (entries.length === 0) return base;
   const search = new URLSearchParams(entries.map(([k, v]) => [k, String(v)]));
   return `${base}?${search.toString()}`;
+}
+
+function quoteJqlString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }

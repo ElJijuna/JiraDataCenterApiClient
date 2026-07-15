@@ -11,7 +11,7 @@ export { SprintResource } from './resources/SprintResource';
 export type { JiraIssue, JiraIssueFields, JiraTimeTracking, JiraSubtask, JiraResolution, IssueParams } from './domain/Issue';
 export type { JiraSearchResponse, SearchParams } from './domain/IssueSearch';
 export type { JiraProject, JiraProjectRef, JiraProjectStatus, JiraProjectRole, JiraProjectRoleActor, ProjectsParams } from './domain/Project';
-export type { JiraUser, UserSearchParams } from './domain/User';
+export type { JiraUser, UserActivityParams, UserSearchParams } from './domain/User';
 export type { JiraComment, JiraCommentResponse, JiraCommentVisibility, CommentsParams } from './domain/Comment';
 export type { JiraWorklog, JiraWorklogResponse, WorklogsParams } from './domain/Worklog';
 export type { JiraChangelogEntry, JiraChangelogItem, JiraChangelogResponse, ChangelogParams } from './domain/Changelog';
