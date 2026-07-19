@@ -8,6 +8,28 @@ export { BoardResource } from './resources/BoardResource';
 export { SprintResource } from './resources/SprintResource';
 export { MetricsResource } from './resources/MetricsResource';
 
+// JQL utilities
+export { jql, field, and, or, not, JqlBuilder, JqlField, JqlBoundField, JqlClause } from './jql/JqlBuilder';
+export type { JqlClauseInput, JqlHistoryPredicates, JqlSortDirection, JqlTemplateValue } from './jql/JqlBuilder';
+export { raw, JqlRaw } from './jql/JqlRaw';
+export { JqlFunctions } from './jql/JqlFunctions';
+export {
+  JQL_RESERVED_WORDS,
+  escapeJqlString,
+  quoteJqlString,
+  needsJqlQuoting,
+  formatJqlField,
+  formatJqlDate,
+  formatJqlOperand,
+} from './jql/JqlEscape';
+export type { JqlOperand } from './jql/JqlEscape';
+export { tokenizeJql } from './jql/JqlLexer';
+export type { JqlToken, JqlTokenType } from './jql/JqlLexer';
+export { lintJql, isValidJql } from './jql/JqlLint';
+export type { JqlLintIssue } from './jql/JqlLint';
+export { formatJql } from './jql/JqlFormat';
+export type { JqlFormatOptions } from './jql/JqlFormat';
+
 // Domain types
 export type { JiraIssue, JiraIssueFields, JiraTimeTracking, JiraSubtask, JiraResolution, IssueParams } from './domain/Issue';
 export type { JiraSearchResponse, SearchParams, SearchPostParams } from './domain/IssueSearch';
@@ -50,6 +72,15 @@ export type {
 } from './domain/Board';
 export type { JiraSprint, SprintsParams } from './domain/Sprint';
 export type { PaginationParams, PagedResponse } from './domain/Pagination';
+export type {
+  JiraJqlAutocompleteData,
+  JiraJqlFieldReference,
+  JiraJqlFunctionReference,
+  JiraJqlSuggestion,
+  JiraJqlSuggestionsResponse,
+  JqlSuggestionsParams,
+  JqlValidationResult,
+} from './domain/Jql';
 export type {
   JiraIssueCount,
   JiraIssueFacetBucket,

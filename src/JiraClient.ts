@@ -1,5 +1,7 @@
 import { Security } from './security/Security';
 import { JiraApiError } from './errors/JiraApiError';
+import { quoteJqlString } from './jql/JqlEscape';
+import type { JqlBuilder, JqlClause } from './jql/JqlBuilder';
 import { IssueResource, type RequestFn, type RequestBodyFn } from './resources/IssueResource';
 import { ProjectResource } from './resources/ProjectResource';
 import { BoardResource } from './resources/BoardResource';
@@ -22,6 +24,12 @@ import type {
   JiraWorklogUpdatedResponse,
   WorklogSinceParams,
 } from './domain/Worklog';
+import type {
+  JiraJqlAutocompleteData,
+  JiraJqlSuggestionsResponse,
+  JqlSuggestionsParams,
+  JqlValidationResult,
+} from './domain/Jql';
 
 /**
  * Payload emitted on every HTTP request made by {@link JiraClient}.
@@ -177,7 +185,7 @@ export class JiraClient {
       const response = await fetch(url, { headers: this.security.getHeaders() });
       statusCode = response.status;
       if (!response.ok) {
-        throw new JiraApiError(response.status, response.statusText);
+        throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
       }
       const data = await response.json() as T;
       this.emit('request', { url, method: 'GET', startedAt, finishedAt: new Date(), durationMs: Date.now() - startedAt.getTime(), statusCode });
@@ -202,7 +210,7 @@ export class JiraClient {
       });
       statusCode = response.status;
       if (!response.ok) {
-        throw new JiraApiError(response.status, response.statusText);
+        throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
       }
       const data = await response.json() as T;
       this.emit('request', { url, method: 'POST', startedAt, finishedAt: new Date(), durationMs: Date.now() - startedAt.getTime(), statusCode });
@@ -632,6 +640,79 @@ export class JiraClient {
     return this.requestPost<JiraSearchResponse>('/search', body);
   }
 
+  // ─── JQL ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches JQL reference data from the instance: every visible field
+   * (including custom fields) with its supported operators, every available
+   * JQL function, and the reserved words list. Useful for building or
+   * validating JQL against the real instance configuration.
+   *
+   * `GET /rest/api/latest/jql/autocompletedata`
+   *
+   * @returns Fields, functions, and reserved words available for JQL
+   */
+  async jqlAutocompleteData(): Promise<JiraJqlAutocompleteData> {
+    return this.request<JiraJqlAutocompleteData>('/jql/autocompletedata');
+  }
+
+  /**
+   * Fetches value suggestions for a JQL field, as used by the Jira issue
+   * navigator autocomplete.
+   *
+   * `GET /rest/api/latest/jql/autocompletedata/suggestions`
+   *
+   * @param params - `fieldName` plus optional `fieldValue`, `predicateName`, `predicateValue`
+   * @returns Matching suggestions
+   *
+   * @example
+   * ```typescript
+   * const { results } = await jira.jqlAutocompleteSuggestions({
+   *   fieldName: 'status',
+   *   fieldValue: 'Op',
+   * });
+   * ```
+   */
+  async jqlAutocompleteSuggestions(params: JqlSuggestionsParams): Promise<JiraJqlSuggestionsResponse> {
+    return this.request<JiraJqlSuggestionsResponse>(
+      '/jql/autocompletedata/suggestions',
+      params as unknown as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Validates a JQL query against the server without fetching any issues
+   * (`validateQuery=true`, `maxResults=0`). This is authoritative validation:
+   * it catches unknown fields, bad values, and syntax errors, unlike the
+   * heuristic local `lintJql()`.
+   *
+   * `GET /rest/api/latest/search`
+   *
+   * @param query - The JQL to validate: a string, a `JqlBuilder`, or a clause
+   * @returns `{ valid: true, errors: [] }` or `{ valid: false, errors: [...] }`
+   *
+   * @example
+   * ```typescript
+   * const result = await jira.validateJql(jql().project('OPS').status('Open'));
+   * if (!result.valid) console.error(result.errors);
+   * ```
+   */
+  async validateJql(query: string | JqlBuilder | JqlClause): Promise<JqlValidationResult> {
+    try {
+      await this.request<JiraSearchResponse>('/search', {
+        jql: query.toString(),
+        maxResults: 0,
+        validateQuery: true,
+      });
+      return { valid: true, errors: [] };
+    } catch (err) {
+      if (err instanceof JiraApiError && err.status === 400) {
+        return { valid: false, errors: err.errorMessages.length > 0 ? err.errorMessages : [err.message] };
+      }
+      throw err;
+    }
+  }
+
   // ─── Components & Versions ───────────────────────────────────────────────────
 
   /**
@@ -695,6 +776,15 @@ function buildUrl(base: string, params?: Record<string, string | number | boolea
   return `${base}?${search.toString()}`;
 }
 
-function quoteJqlString(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+/**
+ * Attempts to parse the JSON body of an error response, returning `undefined`
+ * when the body is missing or not JSON.
+ * @internal
+ */
+async function parseErrorBody(response: { json(): Promise<unknown> }): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
 }

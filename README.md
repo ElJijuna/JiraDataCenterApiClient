@@ -10,6 +10,7 @@ A zero-dependency TypeScript client for the **Jira Data Center REST API** (and J
 
 - **Full TypeScript** — every request and response is fully typed
 - **Read-mostly** — covers major Jira Data Center read endpoints plus POST search/worklog helpers
+- **JQL utilities** — fluent builder, injection-safe tagged template, local lint/format, and server-side validation
 - **Chainable resources** — `jira.issue('PROJ-42').comments()` pattern
 - **Metrics helpers** — count/facet JQL buckets and lightweight user contribution activity
 - **Dual package** — ships CJS + ESM, works in Node.js and browsers
@@ -213,6 +214,104 @@ await jira.versionIssueCounts('20001');
 await jira.versionUnresolvedIssueCount('20001');
 ```
 
+## JQL Utilities
+
+Everything you need to build, validate, and run JQL queries safely.
+
+### Fluent builder
+
+```typescript
+import { jql, field, or, not, JqlFunctions } from 'jira-datacenter-api-client';
+
+const { currentUser, openSprints, startOfDay } = JqlFunctions;
+
+const query = jql()
+  .project('OPS')                          // project = "OPS"
+  .status('Open', 'In Progress')           // status IN ("Open", "In Progress")
+  .assignee(currentUser())                 // assignee = currentUser()
+  .field('sprint').in(openSprints())       // sprint IN (openSprints())
+  .field('updated').gte(startOfDay('-7d')) // updated >= startOfDay("-7d")
+  .where(or(field('priority').eq('High'), field('labels').eq('urgent')))
+  .orderBy('updated', 'DESC')
+  .build();
+
+const results = await jira.search({ jql: query, maxResults: 50 });
+```
+
+Shorthand filters: `project`, `status`, `type`, `assignee`, `reporter`, `priority`, `labels`,
+`component`, `fixVersion`, `sprint`, `text`. One value renders `=`, several render `IN (…)`.
+
+Any field, any operator — via `field(name)` (standalone, composable) or `.field(name)` /
+`.orField(name)` (bound to the builder):
+
+```typescript
+field('resolution').isEmpty();                      // resolution IS EMPTY
+field('Epic Link').eq('OPS-1');                     // "Epic Link" = "OPS-1"   (auto-quoted)
+field('cf[10010]').eq(5);                           // cf[10010] = 5
+field('status').was('Resolved', { by: 'pilmee' });  // status WAS "Resolved" BY "pilmee"
+field('status').changed({ from: 'Open', to: 'Done', after: '-1w' });
+not(field('status').eq('Closed'));                  // NOT (status = "Closed")
+```
+
+### Injection-safe tagged template
+
+Interpolated strings are always escaped and quoted — user input cannot break out of the query:
+
+```typescript
+import { jql, JqlFunctions } from 'jira-datacenter-api-client';
+
+const q = jql`project = ${projectKey} AND summary ~ ${userInput}`;
+// arrays become lists, functions stay verbatim:
+jql`status IN ${['Open', 'Reopened']} AND assignee = ${JqlFunctions.currentUser()}`;
+```
+
+### Lint & format (offline)
+
+```typescript
+import { lintJql, isValidJql, formatJql } from 'jira-datacenter-api-client';
+
+lintJql('project = OPS AND');
+// [{ severity: 'error', message: 'Query must not end with "AND"', start: 14, end: 17 }]
+
+isValidJql('(a = 1');  // false
+
+formatJql('project=OPS and status in("Open","Reopened")order by updated desc');
+// project = OPS AND status IN ("Open", "Reopened") ORDER BY updated DESC
+
+formatJql('a = 1 and b = 2 order by a', { multiline: true });
+// a = 1
+// AND b = 2
+// ORDER BY a
+```
+
+`lintJql` is a fast heuristic (unbalanced parens, dangling `AND`/`OR`, missing operands,
+malformed `ORDER BY`, unterminated strings) — it cannot know your instance's fields.
+For authoritative validation ask the server:
+
+### Server-side validation & autocomplete
+
+```typescript
+// Validate without fetching issues (uses validateQuery=true, maxResults=0)
+const result = await jira.validateJql(jql().project('OPS').status('Open'));
+if (!result.valid) console.error(result.errors); // server error messages
+
+// Instance reference data: all fields (incl. custom fields), operators, functions
+const meta = await jira.jqlAutocompleteData();
+
+// Value suggestions, as in the issue navigator
+const { results } = await jira.jqlAutocompleteSuggestions({ fieldName: 'status', fieldValue: 'Op' });
+```
+
+### Escaping helpers
+
+```typescript
+import { escapeJqlString, quoteJqlString, needsJqlQuoting, formatJqlField } from 'jira-datacenter-api-client';
+
+quoteJqlString('My "special" project'); // "My \"special\" project"
+needsJqlQuoting('Epic Link');           // true
+formatJqlField('Epic Link');            // "Epic Link"
+```
+
 ## Pagination
 
 Most list endpoints return a paginated response:
@@ -276,9 +375,11 @@ try {
   await jira.issue('PROJ-9999');
 } catch (err) {
   if (err instanceof JiraApiError) {
-    console.log(err.status);     // 404
-    console.log(err.statusText); // 'Not Found'
-    console.log(err.message);    // 'Jira API error: 404 Not Found'
+    console.log(err.status);        // 404
+    console.log(err.statusText);    // 'Not Found'
+    console.log(err.message);       // 'Jira API error: 404 Not Found'
+    console.log(err.errorMessages); // ['Issue Does Not Exist'] — from the response body
+    console.log(err.errors);        // { field: 'message' } per-field errors, when present
   }
 }
 ```
