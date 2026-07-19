@@ -1,7 +1,9 @@
-import type { JiraBoard, BoardIssuesParams, JiraBoardConfiguration } from '../domain/Board';
+import type { JiraBoard, BoardIssuesParams, JiraBoardConfiguration, JiraBoardProject } from '../domain/Board';
 import type { JiraSprint, SprintsParams } from '../domain/Sprint';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
-import type { PagedResponse } from '../domain/Pagination';
+import type { PagedResponse, PaginationParams } from '../domain/Pagination';
+import type { JiraEpic } from '../domain/Epic';
+import type { JiraVersion } from '../domain/Version';
 import type { RequestFn } from './IssueResource';
 import { SprintResource } from './SprintResource';
 
@@ -122,6 +124,87 @@ export class BoardResource implements PromiseLike<JiraBoard> {
   async backlog(params?: BoardIssuesParams): Promise<JiraSearchResponse> {
     return this.request<JiraSearchResponse>(
       `${this.basePath}/backlog`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches the epics associated with this board.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic`
+   *
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of epics
+   */
+  async epics(params?: PaginationParams & { done?: boolean }): Promise<PagedResponse<JiraEpic>> {
+    return this.request<PagedResponse<JiraEpic>>(
+      `${this.basePath}/epic`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches this board's issues that do not belong to any epic.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic/none/issue`
+   *
+   * @param params - Optional: `startAt`, `maxResults`, `jql`, `fields`, `expand`
+   * @returns A search response containing the epic-less issues
+   */
+  async issuesWithoutEpic(params?: BoardIssuesParams): Promise<JiraSearchResponse> {
+    return this.request<JiraSearchResponse>(
+      `${this.basePath}/epic/none/issue`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches this board's issues that belong to a given epic.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic/{epicId}/issue`
+   *
+   * @param epicId - The numeric epic ID
+   * @param params - Optional: `startAt`, `maxResults`, `jql`, `fields`, `expand`
+   * @returns A search response containing the epic's issues on this board
+   */
+  async epicIssues(epicId: number, params?: BoardIssuesParams): Promise<JiraSearchResponse> {
+    return this.request<JiraSearchResponse>(
+      `${this.basePath}/epic/${epicId}/issue`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches the projects this board draws issues from.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/project`
+   *
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of projects
+   */
+  async projects(params?: PaginationParams): Promise<PagedResponse<JiraBoardProject>> {
+    return this.request<PagedResponse<JiraBoardProject>>(
+      `${this.basePath}/project`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches the versions (releases) visible on this board.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/version`
+   *
+   * @param params - Optional: `startAt`, `maxResults`, `released`
+   * @returns A paged response of versions
+   */
+  async versions(params?: PaginationParams & { released?: boolean }): Promise<PagedResponse<JiraVersion>> {
+    return this.request<PagedResponse<JiraVersion>>(
+      `${this.basePath}/version`,
       params as Record<string, string | number | boolean>,
       { apiPath: this.agileApiPath },
     );

@@ -6,6 +6,7 @@ import type { JiraTransition, TransitionsParams } from '../domain/Transition';
 import type { JiraRemoteLink } from '../domain/RemoteLink';
 import type { JiraVotes } from '../domain/Vote';
 import type { JiraWatchers } from '../domain/Watcher';
+import type { JiraEditMeta } from '../domain/Meta';
 
 /** @internal */
 export type RequestFn = <T>(
@@ -215,5 +216,17 @@ export class IssueResource implements PromiseLike<JiraIssue> {
    */
   async watchers(): Promise<JiraWatchers> {
     return this.request<JiraWatchers>(`${this.basePath}/watchers`);
+  }
+
+  /**
+   * Fetches the edit metadata for this issue: every editable field with its
+   * schema, allowed values, and supported operations.
+   *
+   * `GET /rest/api/latest/issue/{issueIdOrKey}/editmeta`
+   *
+   * @returns The edit metadata object
+   */
+  async editmeta(): Promise<JiraEditMeta> {
+    return this.request<JiraEditMeta>(`${this.basePath}/editmeta`);
   }
 }

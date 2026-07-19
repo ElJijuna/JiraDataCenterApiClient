@@ -30,6 +30,19 @@ import type {
   JqlSuggestionsParams,
   JqlValidationResult,
 } from './domain/Jql';
+import { EpicResource } from './resources/EpicResource';
+import type { JiraResolution } from './domain/Issue';
+import type { JiraStatusCategory } from './domain/Status';
+import type { JiraServerInfo } from './domain/ServerInfo';
+import type { JiraPermissionsResponse, MyPermissionsParams } from './domain/Permission';
+import type { IssuePickerParams, JiraIssuePickerResponse } from './domain/IssuePicker';
+import type { JiraAttachment, JiraAttachmentMeta } from './domain/Attachment';
+import type { GroupMembersParams, GroupsPickerParams, JiraGroupsPickerResponse } from './domain/Group';
+import type { DashboardsParams, JiraDashboard, JiraDashboardsResponse } from './domain/Dashboard';
+import type { JiraProjectCategory } from './domain/ProjectCategory';
+import type { JiraWorkflow } from './domain/Workflow';
+import type { JiraCustomFieldOption } from './domain/CustomFieldOption';
+import type { JiraFilterColumn, JiraFilterPermission } from './domain/Filter';
 
 /**
  * Payload emitted on every HTTP request made by {@link JiraClient}.
@@ -502,7 +515,285 @@ export class JiraClient {
     return new BoardResource(requestFn, this.agileApiPath, boardId);
   }
 
+  /**
+   * Returns an {@link EpicResource} for a given epic ID or key (Jira Software).
+   *
+   * The returned resource can be awaited directly to fetch the epic,
+   * or chained to fetch its issues. Pass `'none'` to target issues that
+   * belong to no epic (only `.issues()` is valid in that case).
+   *
+   * @param epicIdOrKey - The epic key (e.g. `'PROJ-10'`), numeric ID, or `'none'`
+   * @returns A chainable epic resource
+   *
+   * @example
+   * ```typescript
+   * const epic    = await jira.epic('PROJ-10');
+   * const issues  = await jira.epic('PROJ-10').issues({ maxResults: 100 });
+   * const orphans = await jira.epic('none').issues();
+   * ```
+   */
+  epic(epicIdOrKey: number | string): EpicResource {
+    const requestFn: RequestFn = <T>(
+      path: string,
+      params?: Record<string, string | number | boolean>,
+      options?: { apiPath?: string },
+    ) => this.request<T>(path, params, options);
+    return new EpicResource(requestFn, this.agileApiPath, epicIdOrKey);
+  }
+
+  // ─── Instance & Permissions ──────────────────────────────────────────────────
+
+  /**
+   * Fetches general information about the Jira instance: version, build,
+   * base URL, and server time. Useful as a health check and for detecting
+   * the Data Center version.
+   *
+   * `GET /rest/api/latest/serverInfo`
+   *
+   * @returns The server info object
+   */
+  async serverInfo(): Promise<JiraServerInfo> {
+    return this.request<JiraServerInfo>('/serverInfo');
+  }
+
+  /**
+   * Fetches the permissions of the authenticated user, optionally evaluated
+   * in the context of a project or issue.
+   *
+   * `GET /rest/api/latest/mypermissions`
+   *
+   * @param params - Optional context: `projectKey`, `projectId`, `issueKey`, `issueId`
+   * @returns A map of permission key to permission entry with `havePermission`
+   *
+   * @example
+   * ```typescript
+   * const { permissions } = await jira.myPermissions({ projectKey: 'PROJ' });
+   * if (permissions.BROWSE_PROJECTS?.havePermission) { ... }
+   * ```
+   */
+  async myPermissions(params?: MyPermissionsParams): Promise<JiraPermissionsResponse> {
+    return this.request<JiraPermissionsResponse>(
+      '/mypermissions',
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches all permissions known to the instance.
+   *
+   * `GET /rest/api/latest/permissions`
+   *
+   * @returns A map of permission key to permission entry
+   */
+  async permissions(): Promise<JiraPermissionsResponse> {
+    return this.request<JiraPermissionsResponse>('/permissions');
+  }
+
   // ─── Metadata ────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches all resolutions.
+   *
+   * `GET /rest/api/latest/resolution`
+   *
+   * @returns An array of resolutions
+   */
+  async resolutions(): Promise<JiraResolution[]> {
+    return this.request<JiraResolution[]>('/resolution');
+  }
+
+  /**
+   * Fetches a single resolution by ID.
+   *
+   * `GET /rest/api/latest/resolution/{id}`
+   *
+   * @param id - The resolution ID
+   * @returns The resolution object
+   */
+  async resolution(id: string): Promise<JiraResolution> {
+    return this.request<JiraResolution>(`/resolution/${id}`);
+  }
+
+  /**
+   * Fetches all status categories.
+   *
+   * `GET /rest/api/latest/statuscategory`
+   *
+   * @returns An array of status categories
+   */
+  async statusCategories(): Promise<JiraStatusCategory[]> {
+    return this.request<JiraStatusCategory[]>('/statuscategory');
+  }
+
+  /**
+   * Fetches a single status category by ID or key.
+   *
+   * `GET /rest/api/latest/statuscategory/{idOrKey}`
+   *
+   * @param idOrKey - The status category ID or key (e.g. `'done'`)
+   * @returns The status category object
+   */
+  async statusCategory(idOrKey: string | number): Promise<JiraStatusCategory> {
+    return this.request<JiraStatusCategory>(`/statuscategory/${encodeURIComponent(String(idOrKey))}`);
+  }
+
+  /**
+   * Fetches all project categories.
+   *
+   * `GET /rest/api/latest/projectCategory`
+   *
+   * @returns An array of project categories
+   */
+  async projectCategories(): Promise<JiraProjectCategory[]> {
+    return this.request<JiraProjectCategory[]>('/projectCategory');
+  }
+
+  /**
+   * Fetches a single project category by ID.
+   *
+   * `GET /rest/api/latest/projectCategory/{id}`
+   *
+   * @param id - The project category ID
+   * @returns The project category object
+   */
+  async projectCategory(id: string | number): Promise<JiraProjectCategory> {
+    return this.request<JiraProjectCategory>(`/projectCategory/${id}`);
+  }
+
+  /**
+   * Fetches all workflows.
+   *
+   * `GET /rest/api/latest/workflow`
+   *
+   * @returns An array of workflows
+   */
+  async workflows(): Promise<JiraWorkflow[]> {
+    return this.request<JiraWorkflow[]>('/workflow');
+  }
+
+  /**
+   * Fetches a custom field option by ID (a selectable value of a
+   * select/radio/checkbox custom field).
+   *
+   * `GET /rest/api/latest/customFieldOption/{id}`
+   *
+   * @param id - The option ID
+   * @returns The custom field option
+   */
+  async customFieldOption(id: string | number): Promise<JiraCustomFieldOption> {
+    return this.request<JiraCustomFieldOption>(`/customFieldOption/${id}`);
+  }
+
+  // ─── Attachments ─────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches attachment metadata by ID. The returned object's `content` URL
+   * can be used to download the file with the same credentials.
+   *
+   * `GET /rest/api/latest/attachment/{id}`
+   *
+   * @param id - The attachment ID
+   * @returns The attachment metadata
+   */
+  async attachment(id: string | number): Promise<JiraAttachment> {
+    return this.request<JiraAttachment>(`/attachment/${id}`);
+  }
+
+  /**
+   * Fetches global attachment settings (whether attachments are enabled and
+   * the upload size limit).
+   *
+   * `GET /rest/api/latest/attachment/meta`
+   *
+   * @returns The attachment settings
+   */
+  async attachmentMeta(): Promise<JiraAttachmentMeta> {
+    return this.request<JiraAttachmentMeta>('/attachment/meta');
+  }
+
+  // ─── Groups ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Searches for groups matching a query, as used by group pickers.
+   *
+   * `GET /rest/api/latest/groups/picker`
+   *
+   * @param params - Optional: `query`, `exclude`, `maxResults`
+   * @returns Matching groups with a total count
+   */
+  async groupsPicker(params?: GroupsPickerParams): Promise<JiraGroupsPickerResponse> {
+    return this.request<JiraGroupsPickerResponse>(
+      '/groups/picker',
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches the members of a group.
+   *
+   * `GET /rest/api/latest/group/member`
+   *
+   * @param params - `groupname` plus optional `includeInactiveUsers`, `startAt`, `maxResults`
+   * @returns A paged response of users
+   */
+  async groupMembers(params: GroupMembersParams): Promise<PagedResponse<JiraUser>> {
+    return this.request<PagedResponse<JiraUser>>(
+      '/group/member',
+      params as unknown as Record<string, string | number | boolean>,
+    );
+  }
+
+  // ─── Dashboards ──────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches dashboards visible to the authenticated user.
+   *
+   * `GET /rest/api/latest/dashboard`
+   *
+   * @param params - Optional: `filter` (`'favourite'` | `'my'`), `startAt`, `maxResults`
+   * @returns A paged dashboards response
+   */
+  async dashboards(params?: DashboardsParams): Promise<JiraDashboardsResponse> {
+    return this.request<JiraDashboardsResponse>(
+      '/dashboard',
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches a single dashboard by ID.
+   *
+   * `GET /rest/api/latest/dashboard/{id}`
+   *
+   * @param id - The dashboard ID
+   * @returns The dashboard object
+   */
+  async dashboard(id: string | number): Promise<JiraDashboard> {
+    return this.request<JiraDashboard>(`/dashboard/${id}`);
+  }
+
+  // ─── Issue picker ────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches issue suggestions matching a query, as used by issue pickers
+   * (link dialogs, mention autocomplete).
+   *
+   * `GET /rest/api/latest/issue/picker`
+   *
+   * @param params - Optional: `query`, `currentJQL`, `currentIssueKey`, `currentProjectId`, `showSubTasks`, `showSubTaskParent`
+   * @returns Suggestion sections with matching issues
+   *
+   * @example
+   * ```typescript
+   * const { sections } = await jira.issuePicker({ query: 'timeout', currentJQL: 'project = OPS' });
+   * ```
+   */
+  async issuePicker(params?: IssuePickerParams): Promise<JiraIssuePickerResponse> {
+    return this.request<JiraIssuePickerResponse>(
+      '/issue/picker',
+      params as Record<string, string | number | boolean>,
+    );
+  }
 
   /**
    * Fetches all issue types available to the authenticated user.
@@ -616,6 +907,30 @@ export class JiraClient {
    */
   async filter(filterId: string | number): Promise<JiraFilter> {
     return this.request<JiraFilter>(`/filter/${filterId}`);
+  }
+
+  /**
+   * Fetches the columns configured for a filter's issue navigator view.
+   *
+   * `GET /rest/api/latest/filter/{id}/columns`
+   *
+   * @param filterId - The numeric filter ID
+   * @returns An array of columns
+   */
+  async filterColumns(filterId: string | number): Promise<JiraFilterColumn[]> {
+    return this.request<JiraFilterColumn[]>(`/filter/${filterId}/columns`);
+  }
+
+  /**
+   * Fetches the share permissions of a filter.
+   *
+   * `GET /rest/api/latest/filter/{id}/permission`
+   *
+   * @param filterId - The numeric filter ID
+   * @returns An array of share permissions
+   */
+  async filterPermissions(filterId: string | number): Promise<JiraFilterPermission[]> {
+    return this.request<JiraFilterPermission[]>(`/filter/${filterId}/permission`);
   }
 
   /**

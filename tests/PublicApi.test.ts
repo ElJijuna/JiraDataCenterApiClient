@@ -10,6 +10,7 @@ describe('public API surface', () => {
     expect(api.BoardResource).toBeDefined();
     expect(api.SprintResource).toBeDefined();
     expect(api.MetricsResource).toBeDefined();
+    expect(api.EpicResource).toBeDefined();
   });
 
   it('exports the JQL utilities', () => {

@@ -112,6 +112,10 @@ await jira.issue('PROJ-42').transitions();
 await jira.issue('PROJ-42').remotelinks();
 await jira.issue('PROJ-42').votes();
 await jira.issue('PROJ-42').watchers();
+await jira.issue('PROJ-42').editmeta();   // editable fields, schemas, allowed values
+
+// Issue suggestions (as used by link dialogs / autocomplete)
+await jira.issuePicker({ query: 'timeout', currentJQL: 'project = PROJ' });
 ```
 
 #### Projects
@@ -129,6 +133,10 @@ await jira.project('PROJ').versions();
 await jira.project('PROJ').statuses();     // grouped by issue type
 await jira.project('PROJ').roles();        // role name → URL map
 await jira.project('PROJ').role(10002);    // role with actors
+
+// Create metadata — discover issue types and their fields (incl. custom fields)
+await jira.project('PROJ').createmetaIssueTypes();
+await jira.project('PROJ').createmetaFields('10001');   // fields for one issue type
 ```
 
 #### Boards & Sprints (Jira Software)
@@ -149,6 +157,18 @@ await jira.board(42).backlog({ maxResults: 50 });
 // Sprint sub-resources
 const sprint = await jira.board(42).sprint(10);
 await jira.board(42).sprint(10).issues({ maxResults: 100 });
+
+// Board epics, projects, and versions
+await jira.board(42).epics({ done: false });
+await jira.board(42).epicIssues(7, { maxResults: 25 });
+await jira.board(42).issuesWithoutEpic();
+await jira.board(42).projects();
+await jira.board(42).versions({ released: false });
+
+// Epics (await directly or chain)
+const epic = await jira.epic('PROJ-10');
+await jira.epic('PROJ-10').issues({ maxResults: 100 });
+await jira.epic('none').issues();   // issues that belong to no epic
 ```
 
 #### Users
@@ -164,6 +184,10 @@ await jira.userActivity(['pilmee', 'john'], {
   fields: ['summary', 'updated', 'status'],
   maxResults: 50,
 });
+
+// Groups
+await jira.groupsPicker({ query: 'jira-dev' });
+await jira.groupMembers({ groupname: 'jira-developers', maxResults: 50 });
 ```
 
 #### Metrics & Activity
@@ -204,14 +228,43 @@ await jira.priorities();
 await jira.priority('3');
 await jira.statuses();
 await jira.status('In Progress');
+await jira.resolutions();
+await jira.resolution('1');
+await jira.statusCategories();
+await jira.statusCategory('done');
 await jira.fields();
+await jira.customFieldOption('10001');
 await jira.issueLinkTypes();
 await jira.favouriteFilters();
 await jira.filter('10000');
+await jira.filterColumns('10000');
+await jira.filterPermissions('10000');
 await jira.component('10001');
 await jira.version('20001');
 await jira.versionIssueCounts('20001');
 await jira.versionUnresolvedIssueCount('20001');
+await jira.projectCategories();
+await jira.projectCategory('1');
+await jira.workflows();
+await jira.attachment('1000');       // metadata; download via its `content` URL
+await jira.attachmentMeta();         // enabled + upload limit
+await jira.dashboards({ filter: 'favourite' });
+await jira.dashboard('10000');
+```
+
+#### Instance & Permissions
+
+```typescript
+// Health check / version detection
+const info = await jira.serverInfo();
+console.log(info.version, info.serverTime);
+
+// What can the authenticated user do?
+const { permissions } = await jira.myPermissions({ projectKey: 'PROJ' });
+if (permissions.BROWSE_PROJECTS?.havePermission) { /* ... */ }
+
+// All permissions known to the instance
+await jira.permissions();
 ```
 
 ## JQL Utilities
@@ -357,7 +410,7 @@ jira.on('request', (event) => {
 **Event payload:**
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ----- | ---- | ----------- |
 | `url` | `string` | Full URL requested |
 | `method` | `'GET' \| 'POST'` | HTTP method |
 | `startedAt` | `Date` | Request start timestamp |

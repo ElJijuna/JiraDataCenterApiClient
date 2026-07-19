@@ -31,6 +31,18 @@ export interface JiraFilter {
 }
 
 /**
+ * A column configured for a filter's issue navigator view.
+ *
+ * `GET /rest/api/latest/filter/{id}/columns`
+ */
+export interface JiraFilterColumn {
+  /** Column label shown in the issue navigator */
+  label: string;
+  /** Field ID backing the column (e.g. `'issuekey'`, `'summary'`) */
+  value: string;
+}
+
+/**
  * A permission entry for a shared filter.
  */
 export interface JiraFilterPermission {

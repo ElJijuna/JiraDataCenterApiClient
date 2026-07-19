@@ -18,22 +18,22 @@ The complete "build → validate → query" flow:
 - [x] Instance reference data: `jira.jqlAutocompleteData()` + `jira.jqlAutocompleteSuggestions()`
 - [x] `JiraApiError` now carries `errorMessages` / `errors` from the response body
 
-## P0 — Missing read (GET) endpoints
+## P0 — Missing read (GET) endpoints ✅ (v1.2)
 
 Needed for complete query coverage:
 
-- [ ] `resolutions` / `resolution(id)` (`/rest/api/2/resolution`)
-- [ ] `statusCategories` (`/rest/api/2/statuscategory`)
-- [ ] `serverInfo` (`/rest/api/2/serverInfo`) — health check & DC version detection
-- [ ] `mypermissions` / `permissions`
-- [ ] `createmeta` / `editmeta` (issue & project) — custom field discovery
-- [ ] Issue picker (`/rest/api/2/issue/picker`)
-- [ ] Attachment metadata (`/rest/api/2/attachment/{id}`) + content download
-- [ ] Groups: `/groups/picker`, `/group/member`
-- [ ] Agile: epics (`/epic/{id}`, `board/{id}/epic`, `epic/{id}/issue`, issues without epic), `board/{id}/project`, `board/{id}/version`
-- [ ] Dashboards (`/rest/api/2/dashboard`)
-- [ ] Project categories, workflows, `customFieldOption/{id}`
-- [ ] Filters: `/filter/{id}/columns`, `/filter/{id}/permission`
+- [x] `resolutions()` / `resolution(id)` (`/rest/api/2/resolution`)
+- [x] `statusCategories()` / `statusCategory(idOrKey)` (`/rest/api/2/statuscategory`)
+- [x] `serverInfo()` (`/rest/api/2/serverInfo`) — health check & DC version detection
+- [x] `myPermissions(context?)` / `permissions()`
+- [x] Create/edit metadata: `project(k).createmetaIssueTypes()`, `project(k).createmetaFields(typeId)`, `issue(k).editmeta()` — custom field discovery
+- [x] Issue picker: `issuePicker(params)` (`/rest/api/2/issue/picker`)
+- [x] Attachment metadata: `attachment(id)`, `attachmentMeta()` (content downloadable via the returned `content` URL)
+- [x] Groups: `groupsPicker(params)`, `groupMembers(params)`
+- [x] Agile epics: `epic(idOrKey)` resource (`.get()`, `.issues()`, `epic('none').issues()`), `board(id).epics()`, `board(id).epicIssues(epicId)`, `board(id).issuesWithoutEpic()`, `board(id).projects()`, `board(id).versions()`
+- [x] Dashboards: `dashboards(params?)`, `dashboard(id)`
+- [x] `projectCategories()` / `projectCategory(id)`, `workflows()`, `customFieldOption(id)`
+- [x] Filters: `filterColumns(id)`, `filterPermissions(id)`
 
 ## P1 — Query ergonomics
 

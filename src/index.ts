@@ -7,6 +7,7 @@ export { ProjectResource } from './resources/ProjectResource';
 export { BoardResource } from './resources/BoardResource';
 export { SprintResource } from './resources/SprintResource';
 export { MetricsResource } from './resources/MetricsResource';
+export { EpicResource } from './resources/EpicResource';
 
 // JQL utilities
 export { jql, field, and, or, not, JqlBuilder, JqlField, JqlBoundField, JqlClause } from './jql/JqlBuilder';
@@ -48,7 +49,7 @@ export type {
 } from './domain/Worklog';
 export type { JiraChangelogEntry, JiraChangelogItem, JiraChangelogResponse, ChangelogParams } from './domain/Changelog';
 export type { JiraTransition, JiraTransitionField, TransitionsParams } from './domain/Transition';
-export type { JiraAttachment } from './domain/Attachment';
+export type { JiraAttachment, JiraAttachmentMeta } from './domain/Attachment';
 export type { JiraIssueLink, JiraIssueLinkType, JiraIssueRef } from './domain/IssueLink';
 export type { JiraRemoteLink, JiraRemoteLinkObject } from './domain/RemoteLink';
 export type { JiraVotes } from './domain/Vote';
@@ -59,7 +60,34 @@ export type { JiraStatus, JiraStatusCategory } from './domain/Status';
 export type { JiraComponent } from './domain/Component';
 export type { JiraVersion, JiraVersionIssueCounts, JiraVersionUnresolvedIssueCount } from './domain/Version';
 export type { JiraField } from './domain/Field';
-export type { JiraFilter, JiraFilterPermission } from './domain/Filter';
+export type { JiraFilter, JiraFilterColumn, JiraFilterPermission } from './domain/Filter';
+export type { JiraServerInfo } from './domain/ServerInfo';
+export type { JiraPermission, JiraPermissionsResponse, MyPermissionsParams } from './domain/Permission';
+export type {
+  CreateMetaParams,
+  JiraCreateMetaFields,
+  JiraCreateMetaIssueTypes,
+  JiraEditMeta,
+  JiraFieldMeta,
+  JiraFieldMetaSchema,
+} from './domain/Meta';
+export type {
+  IssuePickerParams,
+  JiraIssuePickerIssue,
+  JiraIssuePickerResponse,
+  JiraIssuePickerSection,
+} from './domain/IssuePicker';
+export type {
+  GroupMembersParams,
+  GroupsPickerParams,
+  JiraGroupSuggestion,
+  JiraGroupsPickerResponse,
+} from './domain/Group';
+export type { DashboardsParams, JiraDashboard, JiraDashboardsResponse } from './domain/Dashboard';
+export type { JiraProjectCategory } from './domain/ProjectCategory';
+export type { JiraWorkflow } from './domain/Workflow';
+export type { JiraCustomFieldOption } from './domain/CustomFieldOption';
+export type { JiraEpic } from './domain/Epic';
 export type {
   BoardIssuesParams,
   BoardsParams,
