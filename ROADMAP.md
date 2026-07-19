@@ -35,14 +35,15 @@ Needed for complete query coverage:
 - [x] `projectCategories()` / `projectCategory(id)`, `workflows()`, `customFieldOption(id)`
 - [x] Filters: `filterColumns(id)`, `filterPermissions(id)`
 
-## P1 — Query ergonomics
+## P1 — Query ergonomics ✅ (v1.2)
 
-- [ ] Auto-pagination with async iterators: `for await (const issue of jira.searchAll(jql))` (search, boards, sprints, board issues, group members)
-- [ ] Typed `fields`/`expand` selection reflected in return types
-- [ ] Retry with backoff for 429/503; `AbortSignal` / timeout support in requests
+- [x] Auto-pagination with async iterators: `searchAll`, `boardsAll`, `usersAll`, `groupMembersAll`, `board(id).sprintsAll/issuesAll/backlogAll/epicsAll`, `sprint(id).issuesAll`, `epic(id).issuesAll` — plus the exported generic `paginate()` helper (`pageSize`, `limit`, `signal`)
+- [x] Retry with exponential backoff (opt-in via `retry` client option; honors `Retry-After`; `retry` event for observability)
+- [x] `timeoutMs` client option and `AbortSignal` support (per-request internally, exposed on all `…All` iterators)
 
 ## P2 — Later
 
+- [ ] Typed `fields`/`expand` selection reflected in return types
 - [ ] Full JQL parser (AST, round-trip, lint of saved filter JQLs)
 - [ ] Write operations (create/update issue, transition, add comment/worklog)
 - [ ] Issue/comment properties, permission & notification schemes, avatars

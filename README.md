@@ -11,6 +11,8 @@ A zero-dependency TypeScript client for the **Jira Data Center REST API** (and J
 - **Full TypeScript** — every request and response is fully typed
 - **Read-mostly** — covers major Jira Data Center read endpoints plus POST search/worklog helpers
 - **JQL utilities** — fluent builder, injection-safe tagged template, local lint/format, and server-side validation
+- **Auto-pagination** — `for await (const issue of jira.searchAll({ jql }))` walks every page for you
+- **Retry & timeouts** — opt-in exponential backoff for 429/5xx, `Retry-After` support, per-request timeout, `AbortSignal`
 - **Chainable resources** — `jira.issue('PROJ-42').comments()` pattern
 - **Metrics helpers** — count/facet JQL buckets and lightweight user contribution activity
 - **Dual package** — ships CJS + ESM, works in Node.js and browsers
@@ -367,7 +369,41 @@ formatJqlField('Epic Link');            // "Epic Link"
 
 ## Pagination
 
-Most list endpoints return a paginated response:
+### Auto-pagination (recommended)
+
+Every paginated endpoint has an `…All` companion that returns an async
+iterator and manages `startAt`/`maxResults` for you:
+
+```typescript
+// Issues (POST /search under the hood — supports large JQL and field arrays)
+for await (const issue of jira.searchAll({ jql: 'project = PROJ', fields: ['summary'] })) {
+  console.log(issue.key, issue.fields.summary);
+}
+
+// Options: page size, item cap, and cancellation
+const controller = new AbortController();
+const issues = await Array.fromAsync(
+  jira.searchAll({ jql: 'project = PROJ' }, { pageSize: 100, limit: 500, signal: controller.signal }),
+);
+
+// Also available:
+jira.boardsAll({ type: 'scrum' });
+jira.usersAll({ username: 'dev' });
+jira.groupMembersAll({ groupname: 'jira-developers' });
+jira.board(42).sprintsAll({ state: 'closed' });
+jira.board(42).issuesAll({ jql: 'status = Open' });
+jira.board(42).backlogAll();
+jira.board(42).epicsAll();
+jira.board(42).sprint(10).issuesAll();
+jira.epic('PROJ-10').issuesAll();
+```
+
+The generic `paginate()` helper is exported too, in case you need to walk a
+custom endpoint.
+
+### Manual pagination
+
+Paginated endpoints return one of these shapes:
 
 ```typescript
 interface PagedResponse<T> {
@@ -379,7 +415,7 @@ interface PagedResponse<T> {
 }
 ```
 
-To iterate through pages:
+To iterate through pages by hand:
 
 ```typescript
 let startAt = 0;
@@ -391,6 +427,48 @@ while (true) {
   allIssues = allIssues.concat(page.issues);
   if (page.startAt + page.issues.length >= page.total) break;
   startAt += maxResults;
+}
+```
+
+## Reliability
+
+### Retry with backoff (opt-in)
+
+```typescript
+const jira = new JiraClient({
+  apiUrl: 'https://jira.example.com',
+  user: 'my-username',
+  token: 'my-token',
+  timeoutMs: 30_000,          // abort any request after 30s
+  retry: {
+    retries: 3,               // attempts after the first (default: 0 — off)
+    baseDelayMs: 300,         // backoff: 300ms, 600ms, 1200ms, …
+    maxDelayMs: 10_000,       // cap for any single delay
+    retryOn: [429, 502, 503, 504],  // default retryable statuses
+  },
+});
+
+// Observe retries
+jira.on('retry', (event) => {
+  console.warn(`retrying ${event.url} (attempt ${event.attempt}) in ${event.delayMs}ms`);
+});
+```
+
+A `Retry-After` response header takes precedence over the computed backoff
+(capped by `maxDelayMs`). Network errors and timeouts are retried while
+attempts remain; non-retryable statuses (e.g. 404) fail immediately.
+
+### Cancellation
+
+All `…All` iterators accept an `AbortSignal` that cancels both the iteration
+and the in-flight request:
+
+```typescript
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5_000);
+
+for await (const issue of jira.searchAll({ jql }, { signal: controller.signal })) {
+  // throws when aborted
 }
 ```
 

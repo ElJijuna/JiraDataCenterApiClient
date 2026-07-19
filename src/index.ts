@@ -1,6 +1,6 @@
 export { JiraClient } from './JiraClient';
 export { JiraApiError } from './errors/JiraApiError';
-export type { JiraClientOptions, RequestEvent, JiraClientEvents } from './JiraClient';
+export type { JiraClientOptions, RequestEvent, RetryEvent, JiraClientEvents, JiraRetryOptions } from './JiraClient';
 export { Security } from './security/Security';
 export { IssueResource } from './resources/IssueResource';
 export { ProjectResource } from './resources/ProjectResource';
@@ -8,6 +8,8 @@ export { BoardResource } from './resources/BoardResource';
 export { SprintResource } from './resources/SprintResource';
 export { MetricsResource } from './resources/MetricsResource';
 export { EpicResource } from './resources/EpicResource';
+export { paginate } from './pagination/paginate';
+export type { PaginateOptions, PaginatedPage } from './pagination/paginate';
 
 // JQL utilities
 export { jql, field, and, or, not, JqlBuilder, JqlField, JqlBoundField, JqlClause } from './jql/JqlBuilder';

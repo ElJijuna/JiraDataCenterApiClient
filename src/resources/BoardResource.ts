@@ -4,8 +4,28 @@ import type { JiraSearchResponse } from '../domain/IssueSearch';
 import type { PagedResponse, PaginationParams } from '../domain/Pagination';
 import type { JiraEpic } from '../domain/Epic';
 import type { JiraVersion } from '../domain/Version';
+import type { JiraIssue } from '../domain/Issue';
 import type { RequestFn } from './IssueResource';
 import { SprintResource } from './SprintResource';
+import { paginate, type PaginateOptions } from '../pagination/paginate';
+
+/** @internal Pages through a search-shaped endpoint (`total` + `issues`). */
+export function paginateIssues(
+  request: RequestFn,
+  path: string,
+  apiPath: string,
+  params: Record<string, unknown>,
+  options?: PaginateOptions,
+): AsyncGenerator<JiraIssue, void, undefined> {
+  return paginate<JiraIssue>(async (startAt, maxResults) => {
+    const page = await request<JiraSearchResponse>(
+      path,
+      { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+      { apiPath, signal: options?.signal },
+    );
+    return { items: page.issues, total: page.total };
+  }, options);
+}
 
 /**
  * Represents a Jira Software board resource with chainable async methods.
@@ -127,6 +147,77 @@ export class BoardResource implements PromiseLike<JiraBoard> {
       params as Record<string, string | number | boolean>,
       { apiPath: this.agileApiPath },
     );
+  }
+
+  /**
+   * Iterates over every sprint of this board, fetching pages transparently.
+   *
+   * @param params - Optional: `state`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each sprint, in order
+   */
+  sprintsAll(
+    params: Omit<SprintsParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraSprint, void, undefined> {
+    return paginate<JiraSprint>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraSprint>>(
+        `${this.basePath}/sprint`,
+        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { apiPath: this.agileApiPath, signal: options?.signal },
+      );
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
+  }
+
+  /**
+   * Iterates over every issue on this board, fetching pages transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each issue, in order
+   */
+  issuesAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(this.request, `${this.basePath}/issue`, this.agileApiPath, params, options);
+  }
+
+  /**
+   * Iterates over every backlog issue of this board, fetching pages
+   * transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each backlog issue, in order
+   */
+  backlogAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(this.request, `${this.basePath}/backlog`, this.agileApiPath, params, options);
+  }
+
+  /**
+   * Iterates over every epic of this board, fetching pages transparently.
+   *
+   * @param params - Optional: `done`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each epic, in order
+   */
+  epicsAll(
+    params: { done?: boolean } = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraEpic, void, undefined> {
+    return paginate<JiraEpic>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraEpic>>(
+        `${this.basePath}/epic`,
+        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { apiPath: this.agileApiPath, signal: options?.signal },
+      );
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
   }
 
   /**

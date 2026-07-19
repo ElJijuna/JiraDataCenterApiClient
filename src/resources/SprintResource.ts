@@ -1,7 +1,10 @@
 import type { JiraSprint } from '../domain/Sprint';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
 import type { BoardIssuesParams } from '../domain/Board';
+import type { JiraIssue } from '../domain/Issue';
 import type { RequestFn } from './IssueResource';
+import type { PaginateOptions } from '../pagination/paginate';
+import { paginateIssues } from './BoardResource';
 
 /**
  * Represents a Jira Software sprint resource.
@@ -66,5 +69,19 @@ export class SprintResource implements PromiseLike<JiraSprint> {
       params as Record<string, string | number | boolean>,
       { apiPath: this.agileApiPath },
     );
+  }
+
+  /**
+   * Iterates over every issue in this sprint, fetching pages transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each issue, in order
+   */
+  issuesAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(this.request, `${this.basePath}/issue`, this.agileApiPath, params, options);
   }
 }

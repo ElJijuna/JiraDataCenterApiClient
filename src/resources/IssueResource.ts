@@ -12,14 +12,14 @@ import type { JiraEditMeta } from '../domain/Meta';
 export type RequestFn = <T>(
   path: string,
   params?: Record<string, string | number | boolean>,
-  options?: { apiPath?: string },
+  options?: { apiPath?: string; signal?: AbortSignal },
 ) => Promise<T>;
 
 /** @internal */
 export type RequestBodyFn = <T>(
   path: string,
   body: unknown,
-  options?: { apiPath?: string },
+  options?: { apiPath?: string; signal?: AbortSignal },
 ) => Promise<T>;
 
 /**

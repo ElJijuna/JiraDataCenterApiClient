@@ -31,6 +31,7 @@ import type {
   JqlValidationResult,
 } from './domain/Jql';
 import { EpicResource } from './resources/EpicResource';
+import { paginate, type PaginateOptions } from './pagination/paginate';
 import type { JiraResolution } from './domain/Issue';
 import type { JiraStatusCategory } from './domain/Status';
 import type { JiraServerInfo } from './domain/ServerInfo';
@@ -64,9 +65,57 @@ export interface RequestEvent {
   error?: Error;
 }
 
+/**
+ * Payload emitted before each retry attempt when retries are configured.
+ */
+export interface RetryEvent {
+  /** Full URL being retried */
+  url: string;
+  /** HTTP method used */
+  method: 'GET' | 'POST';
+  /** 1-based retry attempt number (1 = first retry) */
+  attempt: number;
+  /** Delay before the retry, in milliseconds */
+  delayMs: number;
+  /** HTTP status code that triggered the retry, when a response was received */
+  statusCode?: number;
+  /** Error that triggered the retry, for network failures and timeouts */
+  error?: Error;
+}
+
 /** Map of supported client events to their callback signatures */
 export interface JiraClientEvents {
   request: (event: RequestEvent) => void;
+  retry: (event: RetryEvent) => void;
+}
+
+/**
+ * Retry behavior for failed requests. Retries are opt-in: the default
+ * configuration performs no retries.
+ */
+export interface JiraRetryOptions {
+  /**
+   * Maximum number of retries after the initial attempt.
+   * @default 0
+   */
+  retries?: number;
+  /**
+   * Base delay for exponential backoff (`baseDelayMs * 2^attempt`).
+   * A `Retry-After` response header, when present, takes precedence.
+   * @default 300
+   */
+  baseDelayMs?: number;
+  /**
+   * Upper bound for any single delay.
+   * @default 10000
+   */
+  maxDelayMs?: number;
+  /**
+   * HTTP status codes that trigger a retry. Network errors and timeouts
+   * are always retried while attempts remain.
+   * @default [429, 502, 503, 504]
+   */
+  retryOn?: number[];
 }
 
 /**
@@ -89,6 +138,14 @@ export interface JiraClientOptions {
   user: string;
   /** The personal access token or password to authenticate with */
   token: string;
+  /**
+   * Per-request timeout in milliseconds. A request that exceeds it is
+   * aborted (and retried, when retries are configured).
+   * @default undefined (no timeout)
+   */
+  timeoutMs?: number;
+  /** Retry behavior for failed requests. Off by default. */
+  retry?: JiraRetryOptions;
 }
 
 /**
@@ -137,6 +194,8 @@ export class JiraClient {
   private readonly security: Security;
   private readonly apiPath: string;
   private readonly agileApiPath: string;
+  private readonly timeoutMs?: number;
+  private readonly retryConfig: Required<JiraRetryOptions>;
   private readonly listeners: Map<keyof JiraClientEvents, JiraClientEvents[keyof JiraClientEvents][]> = new Map();
   /** Lightweight issue/user/project metrics derived from Jira Data Center REST and JQL. */
   readonly metrics: MetricsResource;
@@ -145,10 +204,17 @@ export class JiraClient {
    * @param options - Connection and authentication options
    * @throws {TypeError} If `apiUrl` is not a valid URL
    */
-  constructor({ apiUrl, apiPath = 'rest/api/latest', agileApiPath = 'rest/agile/latest', user, token }: JiraClientOptions) {
+  constructor({ apiUrl, apiPath = 'rest/api/latest', agileApiPath = 'rest/agile/latest', user, token, timeoutMs, retry }: JiraClientOptions) {
     this.security = new Security(apiUrl, user, token);
     this.apiPath = apiPath.replace(/^\/|\/$/g, '');
     this.agileApiPath = agileApiPath.replace(/^\/|\/$/g, '');
+    this.timeoutMs = timeoutMs;
+    this.retryConfig = {
+      retries: retry?.retries ?? 0,
+      baseDelayMs: retry?.baseDelayMs ?? 300,
+      maxDelayMs: retry?.maxDelayMs ?? 10_000,
+      retryOn: retry?.retryOn ?? [429, 502, 503, 504],
+    };
     this.metrics = new MetricsResource((body) => this.searchPost(body));
   }
 
@@ -181,13 +247,53 @@ export class JiraClient {
   }
 
   /**
+   * Performs a single `fetch`, retrying retryable failures with exponential
+   * backoff when retries are configured. Honors the `Retry-After` response
+   * header, the client-level timeout, and the per-request abort signal.
+   * @internal
+   */
+  private async fetchWithRetry(
+    url: string,
+    init: RequestInit,
+    method: 'GET' | 'POST',
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const { retries, baseDelayMs, maxDelayMs, retryOn } = this.retryConfig;
+    for (let attempt = 0; ; attempt += 1) {
+      if (signal?.aborted) {
+        throw toError(signal.reason, 'Request aborted');
+      }
+      const attemptSignal = composeSignal(this.timeoutMs, signal);
+      try {
+        const response = await fetch(url, { ...init, signal: attemptSignal.signal });
+        if (!response.ok && retryOn.includes(response.status) && attempt < retries) {
+          const delayMs = Math.min(retryAfterMs(response) ?? baseDelayMs * 2 ** attempt, maxDelayMs);
+          this.emit('retry', { url, method, attempt: attempt + 1, delayMs, statusCode: response.status });
+          await sleep(delayMs, signal);
+          continue;
+        }
+        return response;
+      } catch (err) {
+        if (signal?.aborted || attempt >= retries) {
+          throw err;
+        }
+        const delayMs = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+        this.emit('retry', { url, method, attempt: attempt + 1, delayMs, error: toError(err, 'Request failed') });
+        await sleep(delayMs, signal);
+      } finally {
+        attemptSignal.cleanup();
+      }
+    }
+  }
+
+  /**
    * Performs an authenticated GET request to the Jira REST API.
    * @internal
    */
   private async request<T>(
     path: string,
     params?: Record<string, string | number | boolean>,
-    options?: { apiPath?: string },
+    options?: { apiPath?: string; signal?: AbortSignal },
   ): Promise<T> {
     const apiPath = options?.apiPath ?? this.apiPath;
     const base = `${this.security.getApiUrl()}/${apiPath}${path}`;
@@ -195,7 +301,7 @@ export class JiraClient {
     const startedAt = new Date();
     let statusCode: number | undefined;
     try {
-      const response = await fetch(url, { headers: this.security.getHeaders() });
+      const response = await this.fetchWithRetry(url, { headers: this.security.getHeaders() }, 'GET', options?.signal);
       statusCode = response.status;
       if (!response.ok) {
         throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
@@ -210,17 +316,17 @@ export class JiraClient {
     }
   }
 
-  private async requestPost<T>(path: string, body: unknown, options?: { apiPath?: string }): Promise<T> {
+  private async requestPost<T>(path: string, body: unknown, options?: { apiPath?: string; signal?: AbortSignal }): Promise<T> {
     const apiPath = options?.apiPath ?? this.apiPath;
     const url = `${this.security.getApiUrl()}/${apiPath}${path}`;
     const startedAt = new Date();
     let statusCode: number | undefined;
     try {
-      const response = await fetch(url, {
+      const response = await this.fetchWithRetry(url, {
         method: 'POST',
         headers: this.security.getHeaders(),
         body: JSON.stringify(body),
-      });
+      }, 'POST', options?.signal);
       statusCode = response.status;
       if (!response.ok) {
         throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
@@ -955,6 +1061,105 @@ export class JiraClient {
     return this.requestPost<JiraSearchResponse>('/search', body);
   }
 
+  /**
+   * Iterates over every issue matching a JQL query, fetching pages
+   * transparently (via `POST /search`). `startAt`/`maxResults` are managed
+   * by the iterator — control the page size and item cap through `options`.
+   *
+   * @param params - Search body (`jql`, `fields`, `expand`, `validateQuery`)
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each matching issue, in order
+   *
+   * @example
+   * ```typescript
+   * for await (const issue of jira.searchAll({ jql: 'project = PROJ', fields: ['summary'] })) {
+   *   console.log(issue.key);
+   * }
+   *
+   * // Cap the total and page size
+   * const issues = await Array.fromAsync(jira.searchAll({ jql }, { pageSize: 100, limit: 500 }));
+   * ```
+   */
+  searchAll(
+    params: Omit<SearchPostParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginate<JiraIssue>(async (startAt, maxResults) => {
+      const page = await this.requestPost<JiraSearchResponse>(
+        '/search',
+        { ...params, startAt, maxResults },
+        { signal: options?.signal },
+      );
+      return { items: page.issues, total: page.total };
+    }, options);
+  }
+
+  /**
+   * Iterates over all boards accessible to the user, fetching pages
+   * transparently.
+   *
+   * @param params - Optional board filters (`type`, `name`, `projectKeyOrId`)
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each board, in order
+   */
+  boardsAll(
+    params: Omit<BoardsParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraBoard, void, undefined> {
+    return paginate<JiraBoard>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraBoard>>(
+        '/board',
+        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { apiPath: this.agileApiPath, signal: options?.signal },
+      );
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
+  }
+
+  /**
+   * Iterates over all users matching a search, fetching pages transparently.
+   * The user search endpoint returns bare arrays, so iteration stops when a
+   * page comes back shorter than the page size.
+   *
+   * @param params - Optional: `username`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each user, in order
+   */
+  usersAll(
+    params: Omit<UserSearchParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraUser, void, undefined> {
+    return paginate<JiraUser>(async (startAt, maxResults) => {
+      const page = await this.request<JiraUser[]>(
+        '/user/search',
+        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { signal: options?.signal },
+      );
+      return { items: page };
+    }, options);
+  }
+
+  /**
+   * Iterates over every member of a group, fetching pages transparently.
+   *
+   * @param params - `groupname` plus optional `includeInactiveUsers`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each member, in order
+   */
+  groupMembersAll(
+    params: Omit<GroupMembersParams, 'startAt' | 'maxResults'>,
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraUser, void, undefined> {
+    return paginate<JiraUser>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraUser>>(
+        '/group/member',
+        { ...params, startAt, maxResults } as unknown as Record<string, string | number | boolean>,
+        { signal: options?.signal },
+      );
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
+  }
+
   // ─── JQL ─────────────────────────────────────────────────────────────────────
 
   /**
@@ -1102,4 +1307,76 @@ async function parseErrorBody(response: { json(): Promise<unknown> }): Promise<u
   } catch {
     return undefined;
   }
+}
+
+/** @internal */
+function toError(reason: unknown, fallback: string): Error {
+  if (reason instanceof Error) return reason;
+  return new Error(reason === undefined || reason === null ? fallback : String(reason));
+}
+
+/**
+ * Parses the `Retry-After` response header (seconds), returning `undefined`
+ * when absent or unparsable. Tolerates mock responses without headers.
+ * @internal
+ */
+function retryAfterMs(response: Response): number | undefined {
+  const raw = typeof response.headers?.get === 'function' ? response.headers.get('retry-after') : null;
+  if (raw === null || raw === undefined) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+}
+
+/**
+ * Builds the per-attempt abort signal from the client timeout and the
+ * caller's signal. Returns a cleanup function that must run after the attempt.
+ * @internal
+ */
+function composeSignal(timeoutMs?: number, outer?: AbortSignal): { signal?: AbortSignal; cleanup: () => void } {
+  if (timeoutMs === undefined && outer === undefined) {
+    return { signal: undefined, cleanup: () => undefined };
+  }
+  const controller = new AbortController();
+  const onOuterAbort = (): void => controller.abort(outer?.reason);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs !== undefined) {
+    timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+  }
+  if (outer) {
+    /* istanbul ignore if -- defensive: fetchWithRetry rejects aborted signals before composing */
+    if (outer.aborted) {
+      onOuterAbort();
+    } else {
+      outer.addEventListener('abort', onOuterAbort, { once: true });
+    }
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      if (timer !== undefined) clearTimeout(timer);
+      outer?.removeEventListener('abort', onOuterAbort);
+    },
+  };
+}
+
+/**
+ * Waits for the given delay, rejecting immediately if the signal aborts.
+ * @internal
+ */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(toError(signal.reason, 'Request aborted'));
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(toError(signal?.reason, 'Request aborted'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }

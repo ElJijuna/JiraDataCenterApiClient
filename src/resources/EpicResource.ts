@@ -1,7 +1,10 @@
 import type { JiraEpic } from '../domain/Epic';
 import type { BoardIssuesParams } from '../domain/Board';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
+import type { JiraIssue } from '../domain/Issue';
 import type { RequestFn } from './IssueResource';
+import type { PaginateOptions } from '../pagination/paginate';
+import { paginateIssues } from './BoardResource';
 
 /**
  * Represents a Jira Software epic resource with chainable async methods.
@@ -73,5 +76,20 @@ export class EpicResource implements PromiseLike<JiraEpic> {
       params as Record<string, string | number | boolean>,
       { apiPath: this.agileApiPath },
     );
+  }
+
+  /**
+   * Iterates over every issue of this epic (or, for `epic('none')`, every
+   * issue without an epic), fetching pages transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each issue, in order
+   */
+  issuesAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(this.request, `${this.basePath}/issue`, this.agileApiPath, params, options);
   }
 }
