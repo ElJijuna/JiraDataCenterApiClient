@@ -1,0 +1,19 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "extends": ["super-configs/biome"],
+  "files": {
+    "includes": ["**", "!**/dist", "!**/coverage", "!**/docs", "!package-lock.json"]
+  },
+  "overrides": [
+    {
+      "includes": ["src/resources/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noThenProperty": "off"
+          }
+        }
+      }
+    }
+  ]
+}
