@@ -1,8 +1,8 @@
-import type { JiraUser } from './User';
-import type { JiraIssueType } from './IssueType';
 import type { JiraComponent } from './Component';
-import type { JiraVersion } from './Version';
+import type { JiraIssueType } from './IssueType';
 import type { JiraStatus } from './Status';
+import type { JiraUser } from './User';
+import type { JiraVersion } from './Version';
 
 /**
  * Query parameters for listing projects.

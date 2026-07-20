@@ -1,6 +1,18 @@
 import type { JiraUser } from './User';
 
 /**
+ * Global attachment settings.
+ *
+ * `GET /rest/api/latest/attachment/meta`
+ */
+export interface JiraAttachmentMeta {
+  /** Whether attachments are enabled on the instance */
+  enabled: boolean;
+  /** Maximum upload size in bytes */
+  uploadLimit?: number;
+}
+
+/**
  * A file attachment on a Jira issue.
  */
 export interface JiraAttachment {

@@ -1,9 +1,37 @@
-import type { JiraBoard, BoardIssuesParams, JiraBoardConfiguration } from '../domain/Board';
-import type { JiraSprint, SprintsParams } from '../domain/Sprint';
+import type {
+  BoardIssuesParams,
+  JiraBoard,
+  JiraBoardConfiguration,
+  JiraBoardProject,
+} from '../domain/Board';
+import type { JiraEpic } from '../domain/Epic';
+import type { JiraIssue } from '../domain/Issue';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
-import type { PagedResponse } from '../domain/Pagination';
+import type { PagedResponse, PaginationParams } from '../domain/Pagination';
+import type { JiraSprint, SprintsParams } from '../domain/Sprint';
+import type { JiraVersion } from '../domain/Version';
+import { type PaginateOptions, paginate } from '../pagination/paginate';
 import type { RequestFn } from './IssueResource';
 import { SprintResource } from './SprintResource';
+
+/** @internal Pages through a search-shaped endpoint (`total` + `issues`). */
+export function paginateIssues(
+  request: RequestFn,
+  path: string,
+  apiPath: string,
+  params: Record<string, unknown>,
+  options?: PaginateOptions,
+): AsyncGenerator<JiraIssue, void, undefined> {
+  return paginate<JiraIssue>(async (startAt, maxResults) => {
+    const page = await request<JiraSearchResponse>(
+      path,
+      { ...params, startAt, maxResults },
+      { apiPath, signal: options?.signal },
+    );
+
+    return { items: page.issues, total: page.total };
+  }, options);
+}
 
 /**
  * Represents a Jira Software board resource with chainable async methods.
@@ -50,6 +78,7 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     onfulfilled?: ((value: JiraBoard) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -72,11 +101,9 @@ export class BoardResource implements PromiseLike<JiraBoard> {
    * Useful for deriving sprint velocity, cycle time, and workflow-column metrics.
    */
   async configuration(): Promise<JiraBoardConfiguration> {
-    return this.request<JiraBoardConfiguration>(
-      `${this.basePath}/configuration`,
-      undefined,
-      { apiPath: this.agileApiPath },
-    );
+    return this.request<JiraBoardConfiguration>(`${this.basePath}/configuration`, undefined, {
+      apiPath: this.agileApiPath,
+    });
   }
 
   /**
@@ -122,6 +149,174 @@ export class BoardResource implements PromiseLike<JiraBoard> {
   async backlog(params?: BoardIssuesParams): Promise<JiraSearchResponse> {
     return this.request<JiraSearchResponse>(
       `${this.basePath}/backlog`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Iterates over every sprint of this board, fetching pages transparently.
+   *
+   * @param params - Optional: `state`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each sprint, in order
+   */
+  sprintsAll(
+    params: Omit<SprintsParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraSprint, void, undefined> {
+    return paginate<JiraSprint>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraSprint>>(
+        `${this.basePath}/sprint`,
+        { ...params, startAt, maxResults },
+        { apiPath: this.agileApiPath, signal: options?.signal },
+      );
+
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
+  }
+
+  /**
+   * Iterates over every issue on this board, fetching pages transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each issue, in order
+   */
+  issuesAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(
+      this.request,
+      `${this.basePath}/issue`,
+      this.agileApiPath,
+      params,
+      options,
+    );
+  }
+
+  /**
+   * Iterates over every backlog issue of this board, fetching pages
+   * transparently.
+   *
+   * @param params - Optional: `jql`, `fields`, `expand`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each backlog issue, in order
+   */
+  backlogAll(
+    params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraIssue, void, undefined> {
+    return paginateIssues(
+      this.request,
+      `${this.basePath}/backlog`,
+      this.agileApiPath,
+      params,
+      options,
+    );
+  }
+
+  /**
+   * Iterates over every epic of this board, fetching pages transparently.
+   *
+   * @param params - Optional: `done`
+   * @param options - `pageSize` (default 50), `limit`, `signal`
+   * @yields Each epic, in order
+   */
+  epicsAll(
+    params: { done?: boolean } = {},
+    options?: PaginateOptions,
+  ): AsyncGenerator<JiraEpic, void, undefined> {
+    return paginate<JiraEpic>(async (startAt, maxResults) => {
+      const page = await this.request<PagedResponse<JiraEpic>>(
+        `${this.basePath}/epic`,
+        { ...params, startAt, maxResults },
+        { apiPath: this.agileApiPath, signal: options?.signal },
+      );
+
+      return { items: page.values, total: page.total, isLast: page.isLast };
+    }, options);
+  }
+
+  /**
+   * Fetches the epics associated with this board.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic`
+   *
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of epics
+   */
+  async epics(params?: PaginationParams & { done?: boolean }): Promise<PagedResponse<JiraEpic>> {
+    return this.request<PagedResponse<JiraEpic>>(
+      `${this.basePath}/epic`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches this board's issues that do not belong to any epic.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic/none/issue`
+   *
+   * @param params - Optional: `startAt`, `maxResults`, `jql`, `fields`, `expand`
+   * @returns A search response containing the epic-less issues
+   */
+  async issuesWithoutEpic(params?: BoardIssuesParams): Promise<JiraSearchResponse> {
+    return this.request<JiraSearchResponse>(
+      `${this.basePath}/epic/none/issue`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches this board's issues that belong to a given epic.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/epic/{epicId}/issue`
+   *
+   * @param epicId - The numeric epic ID
+   * @param params - Optional: `startAt`, `maxResults`, `jql`, `fields`, `expand`
+   * @returns A search response containing the epic's issues on this board
+   */
+  async epicIssues(epicId: number, params?: BoardIssuesParams): Promise<JiraSearchResponse> {
+    return this.request<JiraSearchResponse>(
+      `${this.basePath}/epic/${epicId}/issue`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches the projects this board draws issues from.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/project`
+   *
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of projects
+   */
+  async projects(params?: PaginationParams): Promise<PagedResponse<JiraBoardProject>> {
+    return this.request<PagedResponse<JiraBoardProject>>(
+      `${this.basePath}/project`,
+      params as Record<string, string | number | boolean>,
+      { apiPath: this.agileApiPath },
+    );
+  }
+
+  /**
+   * Fetches the versions (releases) visible on this board.
+   *
+   * `GET /rest/agile/latest/board/{boardId}/version`
+   *
+   * @param params - Optional: `startAt`, `maxResults`, `released`
+   * @returns A paged response of versions
+   */
+  async versions(
+    params?: PaginationParams & { released?: boolean },
+  ): Promise<PagedResponse<JiraVersion>> {
+    return this.request<PagedResponse<JiraVersion>>(
+      `${this.basePath}/version`,
       params as Record<string, string | number | boolean>,
       { apiPath: this.agileApiPath },
     );

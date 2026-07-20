@@ -1,17 +1,17 @@
-import type { JiraUser } from './User';
-import type { JiraStatus } from './Status';
-import type { JiraPriority } from './Priority';
-import type { JiraIssueType } from './IssueType';
-import type { JiraComponent } from './Component';
-import type { JiraVersion } from './Version';
 import type { JiraAttachment } from './Attachment';
-import type { JiraIssueLink, JiraIssueRef } from './IssueLink';
+import type { JiraChangelogResponse } from './Changelog';
 import type { JiraCommentResponse } from './Comment';
-import type { JiraWorklogResponse } from './Worklog';
+import type { JiraComponent } from './Component';
+import type { JiraIssueLink, JiraIssueRef } from './IssueLink';
+import type { JiraIssueType } from './IssueType';
+import type { JiraPriority } from './Priority';
 import type { JiraProjectRef } from './Project';
+import type { JiraStatus } from './Status';
+import type { JiraUser } from './User';
+import type { JiraVersion } from './Version';
 import type { JiraVotes } from './Vote';
 import type { JiraWatchers } from './Watcher';
-import type { JiraChangelogResponse } from './Changelog';
+import type { JiraWorklogResponse } from './Worklog';
 
 /**
  * Query parameters for fetching an issue.

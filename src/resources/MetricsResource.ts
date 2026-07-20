@@ -1,4 +1,4 @@
-import type { SearchPostParams, JiraSearchResponse } from '../domain/IssueSearch';
+import type { JiraSearchResponse, SearchPostParams } from '../domain/IssueSearch';
 import type {
   JiraIssueCount,
   JiraIssueFacetBucket,
@@ -61,6 +61,7 @@ export class MetricsResource {
     const tasks = values.map((value) => async (): Promise<JiraIssueFacetBucket> => {
       const bucketJql = joinJql([scopeJql, `${field} = ${quoteJqlValue(value)}`]);
       const count = await this.count({ jql: bucketJql, validateQuery });
+
       return {
         value,
         jql: count.jql,
@@ -91,10 +92,12 @@ export class MetricsResource {
       const metricTasks = include.map((metric) => async () => {
         const jql = contributionJql(username, metric, params);
         const metricCount = await this.count({ jql, validateQuery: params.validateQuery });
+
         row[metric] = metricCount.total;
       });
 
       await runLimited(metricTasks, params.concurrency ?? 4);
+
       return row;
     });
 
@@ -157,7 +160,9 @@ function updatedByJql(username: string, from?: string, to?: string): string {
     quoteJqlString(username),
     from ? quoteJqlString(from) : undefined,
     to ? quoteJqlString(to) : undefined,
-  ].filter(Boolean).join(', ')})`;
+  ]
+    .filter(Boolean)
+    .join(', ')})`;
 }
 
 function dateRangeJql(field: string, scope: MetricsScope): string {
@@ -185,17 +190,20 @@ function quoteJqlString(value: string): string {
 
 async function runLimited<T>(tasks: Array<() => Promise<T>>, concurrency: number): Promise<T[]> {
   const limit = Math.max(1, Math.floor(concurrency));
-  const results: T[] = new Array(tasks.length);
+  const results = new Array<T>(tasks.length);
+
   let next = 0;
 
   async function worker(): Promise<void> {
     while (next < tasks.length) {
       const index = next;
+
       next += 1;
       results[index] = await tasks[index]();
     }
   }
 
   await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
+
   return results;
 }

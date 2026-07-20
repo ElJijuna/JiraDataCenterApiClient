@@ -1,5 +1,15 @@
-import type { JiraProject, JiraProjectStatus, JiraProjectRole, ProjectsParams } from '../domain/Project';
 import type { JiraComponent } from '../domain/Component';
+import type {
+  CreateMetaParams,
+  JiraCreateMetaFields,
+  JiraCreateMetaIssueTypes,
+} from '../domain/Meta';
+import type {
+  JiraProject,
+  JiraProjectRole,
+  JiraProjectStatus,
+  ProjectsParams,
+} from '../domain/Project';
 import type { JiraVersion } from '../domain/Version';
 import type { RequestFn } from './IssueResource';
 
@@ -29,12 +39,14 @@ import type { RequestFn } from './IssueResource';
  */
 export class ProjectResource implements PromiseLike<JiraProject> {
   private readonly basePath: string;
+  private readonly projectIdOrKey: string;
 
   /** @internal */
   constructor(
     private readonly request: RequestFn,
     projectIdOrKey: string,
   ) {
+    this.projectIdOrKey = projectIdOrKey;
     this.basePath = `/project/${projectIdOrKey}`;
   }
 
@@ -46,6 +58,7 @@ export class ProjectResource implements PromiseLike<JiraProject> {
     onfulfilled?: ((value: JiraProject) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -122,5 +135,44 @@ export class ProjectResource implements PromiseLike<JiraProject> {
    */
   async role(roleId: number): Promise<JiraProjectRole> {
     return this.request<JiraProjectRole>(`${this.basePath}/role/${roleId}`);
+  }
+
+  /**
+   * Fetches the issue types available for creating issues in this project.
+   *
+   * `GET /rest/api/latest/issue/createmeta/{projectIdOrKey}/issuetypes`
+   *
+   * (The old un-scoped `/issue/createmeta` endpoint was removed in Jira 9.0;
+   * this is the Data Center replacement.)
+   *
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of issue types
+   */
+  async createmetaIssueTypes(params?: CreateMetaParams): Promise<JiraCreateMetaIssueTypes> {
+    return this.request<JiraCreateMetaIssueTypes>(
+      `/issue/createmeta/${this.projectIdOrKey}/issuetypes`,
+      params as Record<string, string | number | boolean>,
+    );
+  }
+
+  /**
+   * Fetches the field metadata for creating issues of a given type in this
+   * project — required fields, allowed values, and defaults. This is the way
+   * to discover which custom fields apply to a project/issue-type pair.
+   *
+   * `GET /rest/api/latest/issue/createmeta/{projectIdOrKey}/issuetypes/{issueTypeId}`
+   *
+   * @param issueTypeId - The issue type ID to get create metadata for
+   * @param params - Optional: `startAt`, `maxResults`
+   * @returns A paged response of field metadata
+   */
+  async createmetaFields(
+    issueTypeId: string,
+    params?: CreateMetaParams,
+  ): Promise<JiraCreateMetaFields> {
+    return this.request<JiraCreateMetaFields>(
+      `/issue/createmeta/${this.projectIdOrKey}/issuetypes/${issueTypeId}`,
+      params as Record<string, string | number | boolean>,
+    );
   }
 }

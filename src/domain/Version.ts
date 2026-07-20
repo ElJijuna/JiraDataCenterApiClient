@@ -37,7 +37,11 @@ export interface JiraVersionIssueCounts {
   /** Number of issues with a Fix Version of this version whose status is done */
   issueCountWithCustomFieldsShowingVersion: number;
   /** URL to query for a custom field showing this version */
-  customFieldUsage: Array<{ fieldName: string; customFieldId: number; issueCountWithVersionInCustomField: number }>;
+  customFieldUsage: Array<{
+    fieldName: string;
+    customFieldId: number;
+    issueCountWithVersionInCustomField: number;
+  }>;
 }
 
 /**

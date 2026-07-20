@@ -1,24 +1,25 @@
-import type { JiraIssue, IssueParams } from '../domain/Issue';
-import type { JiraComment, JiraCommentResponse, CommentsParams } from '../domain/Comment';
-import type { JiraWorklog, JiraWorklogResponse, WorklogsParams } from '../domain/Worklog';
-import type { JiraChangelogResponse, ChangelogParams } from '../domain/Changelog';
-import type { JiraTransition, TransitionsParams } from '../domain/Transition';
+import type { ChangelogParams, JiraChangelogResponse } from '../domain/Changelog';
+import type { CommentsParams, JiraComment, JiraCommentResponse } from '../domain/Comment';
+import type { IssueParams, JiraIssue } from '../domain/Issue';
+import type { JiraEditMeta } from '../domain/Meta';
 import type { JiraRemoteLink } from '../domain/RemoteLink';
+import type { JiraTransition, TransitionsParams } from '../domain/Transition';
 import type { JiraVotes } from '../domain/Vote';
 import type { JiraWatchers } from '../domain/Watcher';
+import type { JiraWorklog, JiraWorklogResponse, WorklogsParams } from '../domain/Worklog';
 
 /** @internal */
 export type RequestFn = <T>(
   path: string,
   params?: Record<string, string | number | boolean>,
-  options?: { apiPath?: string },
+  options?: { apiPath?: string; signal?: AbortSignal },
 ) => Promise<T>;
 
 /** @internal */
 export type RequestBodyFn = <T>(
   path: string,
   body: unknown,
-  options?: { apiPath?: string },
+  options?: { apiPath?: string; signal?: AbortSignal },
 ) => Promise<T>;
 
 /**
@@ -76,6 +77,7 @@ export class IssueResource implements PromiseLike<JiraIssue> {
     onfulfilled?: ((value: JiraIssue) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -158,10 +160,8 @@ export class IssueResource implements PromiseLike<JiraIssue> {
    * @returns A paged response of changelog entries
    */
   async changelog(_params?: ChangelogParams): Promise<JiraChangelogResponse> {
-    const issue = await this.request<JiraIssue>(
-      this.basePath,
-      { expand: 'changelog' },
-    );
+    const issue = await this.request<JiraIssue>(this.basePath, { expand: 'changelog' });
+
     return issue.changelog ?? { startAt: 0, maxResults: 0, total: 0, histories: [] };
   }
 
@@ -215,5 +215,17 @@ export class IssueResource implements PromiseLike<JiraIssue> {
    */
   async watchers(): Promise<JiraWatchers> {
     return this.request<JiraWatchers>(`${this.basePath}/watchers`);
+  }
+
+  /**
+   * Fetches the edit metadata for this issue: every editable field with its
+   * schema, allowed values, and supported operations.
+   *
+   * `GET /rest/api/latest/issue/{issueIdOrKey}/editmeta`
+   *
+   * @returns The edit metadata object
+   */
+  async editmeta(): Promise<JiraEditMeta> {
+    return this.request<JiraEditMeta>(`${this.basePath}/editmeta`);
   }
 }

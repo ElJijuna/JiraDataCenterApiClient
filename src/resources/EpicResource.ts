@@ -1,44 +1,50 @@
 import type { BoardIssuesParams } from '../domain/Board';
+import type { JiraEpic } from '../domain/Epic';
 import type { JiraIssue } from '../domain/Issue';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
-import type { JiraSprint } from '../domain/Sprint';
 import type { PaginateOptions } from '../pagination/paginate';
 import { paginateIssues } from './BoardResource';
 import type { RequestFn } from './IssueResource';
 
 /**
- * Represents a Jira Software sprint resource.
+ * Represents a Jira Software epic resource with chainable async methods.
  *
- * Implements `PromiseLike<JiraSprint>` so it can be awaited directly
- * to fetch the sprint, while also exposing sub-resource methods.
+ * Implements `PromiseLike<JiraEpic>` so it can be awaited directly
+ * to fetch the epic, while also exposing its issues.
+ *
+ * Pass `'none'` as the epic ID to target issues that do not belong to any
+ * epic (only {@link EpicResource.issues} is valid in that case).
  *
  * @example
  * ```typescript
- * // Await directly to get sprint info
- * const sprint = await jiraClient.board(42).sprint(10);
+ * // Await directly to get epic info
+ * const epic = await jiraClient.epic('PROJ-10');
  *
- * // Get sprint issues
- * const issues = await jiraClient.board(42).sprint(10).issues({ maxResults: 50 });
+ * // Get the epic's issues
+ * const issues = await jiraClient.epic('PROJ-10').issues({ maxResults: 100 });
+ *
+ * // Get issues without an epic
+ * const orphans = await jiraClient.epic('none').issues();
  * ```
  */
-export class SprintResource implements PromiseLike<JiraSprint> {
+export class EpicResource implements PromiseLike<JiraEpic> {
   private readonly basePath: string;
 
   /** @internal */
   constructor(
     private readonly request: RequestFn,
     private readonly agileApiPath: string,
-    sprintId: number,
+    epicIdOrKey: number | string,
   ) {
-    this.basePath = `/sprint/${sprintId}`;
+    this.basePath = `/epic/${epicIdOrKey}`;
   }
 
   /**
-   * Allows the resource to be awaited directly, resolving with the sprint.
-   * Delegates to {@link SprintResource.get}.
+   * Allows the resource to be awaited directly, resolving with the epic.
+   * Delegates to {@link EpicResource.get}.
    */
-  then<TResult1 = JiraSprint, TResult2 = never>(
-    onfulfilled?: ((value: JiraSprint) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = JiraEpic, TResult2 = never>(
+    onfulfilled?: ((value: JiraEpic) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
     // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
@@ -46,23 +52,24 @@ export class SprintResource implements PromiseLike<JiraSprint> {
   }
 
   /**
-   * Fetches the sprint details.
+   * Fetches the epic details.
    *
-   * `GET /rest/agile/latest/sprint/{sprintId}`
+   * `GET /rest/agile/latest/epic/{epicIdOrKey}`
    *
-   * @returns The sprint object
+   * @returns The epic object
    */
-  async get(): Promise<JiraSprint> {
-    return this.request<JiraSprint>(this.basePath, undefined, { apiPath: this.agileApiPath });
+  async get(): Promise<JiraEpic> {
+    return this.request<JiraEpic>(this.basePath, undefined, { apiPath: this.agileApiPath });
   }
 
   /**
-   * Fetches issues in this sprint.
+   * Fetches the issues that belong to this epic (or, for `epic('none')`,
+   * the issues that belong to no epic).
    *
-   * `GET /rest/agile/latest/sprint/{sprintId}/issue`
+   * `GET /rest/agile/latest/epic/{epicIdOrKey}/issue`
    *
    * @param params - Optional: `startAt`, `maxResults`, `jql`, `fields`, `expand`
-   * @returns A search response containing the sprint's issues
+   * @returns A search response containing the epic's issues
    */
   async issues(params?: BoardIssuesParams): Promise<JiraSearchResponse> {
     return this.request<JiraSearchResponse>(
@@ -73,7 +80,8 @@ export class SprintResource implements PromiseLike<JiraSprint> {
   }
 
   /**
-   * Iterates over every issue in this sprint, fetching pages transparently.
+   * Iterates over every issue of this epic (or, for `epic('none')`, every
+   * issue without an epic), fetching pages transparently.
    *
    * @param params - Optional: `jql`, `fields`, `expand`
    * @param options - `pageSize` (default 50), `limit`, `signal`
