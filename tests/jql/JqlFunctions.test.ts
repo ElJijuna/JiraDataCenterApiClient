@@ -19,10 +19,16 @@ describe('JqlFunctions', () => {
 
   it('quotes string arguments', () => {
     expect(JqlFunctions.membersOf('jira-developers').toJql()).toBe('membersOf("jira-developers")');
-    expect(JqlFunctions.earliestUnreleasedVersion('OPS').toJql()).toBe('earliestUnreleasedVersion("OPS")');
+    expect(JqlFunctions.earliestUnreleasedVersion('OPS').toJql()).toBe(
+      'earliestUnreleasedVersion("OPS")',
+    );
     expect(JqlFunctions.latestReleasedVersion('OPS').toJql()).toBe('latestReleasedVersion("OPS")');
-    expect(JqlFunctions.projectsWhereUserHasPermission('Edit Issues').toJql()).toBe('projectsWhereUserHasPermission("Edit Issues")');
-    expect(JqlFunctions.projectsWhereUserHasRole('Developers').toJql()).toBe('projectsWhereUserHasRole("Developers")');
+    expect(JqlFunctions.projectsWhereUserHasPermission('Edit Issues').toJql()).toBe(
+      'projectsWhereUserHasPermission("Edit Issues")',
+    );
+    expect(JqlFunctions.projectsWhereUserHasRole('Developers').toJql()).toBe(
+      'projectsWhereUserHasRole("Developers")',
+    );
   });
 
   it('renders date period functions with and without offsets', () => {
@@ -39,13 +45,17 @@ describe('JqlFunctions', () => {
 
   it('skips trailing optional arguments', () => {
     expect(JqlFunctions.linkedIssues('PROJ-42').toJql()).toBe('linkedIssues("PROJ-42")');
-    expect(JqlFunctions.linkedIssues('PROJ-42', 'blocks').toJql()).toBe('linkedIssues("PROJ-42", "blocks")');
+    expect(JqlFunctions.linkedIssues('PROJ-42', 'blocks').toJql()).toBe(
+      'linkedIssues("PROJ-42", "blocks")',
+    );
     expect(JqlFunctions.releasedVersions().toJql()).toBe('releasedVersions()');
     expect(JqlFunctions.unreleasedVersions('OPS').toJql()).toBe('unreleasedVersions("OPS")');
     expect(JqlFunctions.componentsLeadByUser().toJql()).toBe('componentsLeadByUser()');
     expect(JqlFunctions.projectsLeadByUser('pilmee').toJql()).toBe('projectsLeadByUser("pilmee")');
     expect(JqlFunctions.updatedBy('pilmee').toJql()).toBe('updatedBy("pilmee")');
-    expect(JqlFunctions.updatedBy('pilmee', '-30d', '-1d').toJql()).toBe('updatedBy("pilmee", "-30d", "-1d")');
+    expect(JqlFunctions.updatedBy('pilmee', '-30d', '-1d').toJql()).toBe(
+      'updatedBy("pilmee", "-30d", "-1d")',
+    );
   });
 
   it('returns JqlRaw instances usable as operands', () => {

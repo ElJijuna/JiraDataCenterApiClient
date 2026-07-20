@@ -1,5 +1,5 @@
-import { JqlRaw } from './JqlRaw';
 import { formatJqlField, formatJqlOperand, type JqlOperand } from './JqlEscape';
+import { JqlRaw } from './JqlRaw';
 
 /**
  * Base class for all composable JQL clauses produced by {@link field},
@@ -41,17 +41,42 @@ export interface JqlHistoryPredicates {
 
 /** @internal */
 function renderPredicates(predicates?: JqlHistoryPredicates): string {
-  if (!predicates) return '';
-  const parts: string[] = [];
-  if (predicates.from !== undefined) parts.push(`FROM ${formatJqlOperand(predicates.from)}`);
-  if (predicates.to !== undefined) parts.push(`TO ${formatJqlOperand(predicates.to)}`);
-  if (predicates.by !== undefined) parts.push(`BY ${formatJqlOperand(predicates.by)}`);
-  if (predicates.before !== undefined) parts.push(`BEFORE ${formatJqlOperand(predicates.before)}`);
-  if (predicates.after !== undefined) parts.push(`AFTER ${formatJqlOperand(predicates.after)}`);
-  if (predicates.on !== undefined) parts.push(`ON ${formatJqlOperand(predicates.on)}`);
-  if (predicates.during !== undefined) {
-    parts.push(`DURING (${formatJqlOperand(predicates.during[0])}, ${formatJqlOperand(predicates.during[1])})`);
+  if (!predicates) {
+    return '';
   }
+
+  const parts: string[] = [];
+
+  if (predicates.from !== undefined) {
+    parts.push(`FROM ${formatJqlOperand(predicates.from)}`);
+  }
+
+  if (predicates.to !== undefined) {
+    parts.push(`TO ${formatJqlOperand(predicates.to)}`);
+  }
+
+  if (predicates.by !== undefined) {
+    parts.push(`BY ${formatJqlOperand(predicates.by)}`);
+  }
+
+  if (predicates.before !== undefined) {
+    parts.push(`BEFORE ${formatJqlOperand(predicates.before)}`);
+  }
+
+  if (predicates.after !== undefined) {
+    parts.push(`AFTER ${formatJqlOperand(predicates.after)}`);
+  }
+
+  if (predicates.on !== undefined) {
+    parts.push(`ON ${formatJqlOperand(predicates.on)}`);
+  }
+
+  if (predicates.during !== undefined) {
+    parts.push(
+      `DURING (${formatJqlOperand(predicates.during[0])}, ${formatJqlOperand(predicates.during[1])})`,
+    );
+  }
+
   return parts.length > 0 ? ` ${parts.join(' ')}` : '';
 }
 
@@ -70,6 +95,7 @@ class TerminalClause extends JqlClause {
 class RawClause extends JqlClause {
   constructor(private readonly jql: string) {
     super();
+
     if (this.jql.trim().length === 0) {
       throw new TypeError('JQL clause must be a non-empty string');
     }
@@ -87,18 +113,23 @@ class LogicalClause extends JqlClause {
     private readonly clauses: JqlClause[],
   ) {
     super();
+
     if (clauses.length === 0) {
       throw new TypeError(`${operator} requires at least one clause`);
     }
   }
 
   toJql(): string {
-    if (this.clauses.length === 1) return this.clauses[0].toJql();
+    if (this.clauses.length === 1) {
+      return this.clauses[0].toJql();
+    }
+
     return this.clauses
       .map((clause) => {
         const needsParens =
           (clause instanceof LogicalClause && clause.operator !== this.operator) ||
           clause instanceof RawClause;
+
         return needsParens ? `(${clause.toJql()})` : clause.toJql();
       })
       .join(` ${this.operator} `);
@@ -118,18 +149,29 @@ class NotClause extends JqlClause {
 
 /** @internal */
 function toClause(input: JqlClauseInput): JqlClause {
-  if (input instanceof JqlClause) return input;
-  if (input instanceof JqlRaw) return new RawClause(input.toJql());
-  if (typeof input === 'string') return new RawClause(input);
+  if (input instanceof JqlClause) {
+    return input;
+  }
+
+  if (input instanceof JqlRaw) {
+    return new RawClause(input.toJql());
+  }
+
+  if (typeof input === 'string') {
+    return new RawClause(input);
+  }
+
   throw new TypeError(`Unsupported JQL clause: ${String(input)}`);
 }
 
 /** @internal */
 function flattenValues(values: Array<JqlOperand | JqlOperand[]>): JqlOperand[] {
   const flat = values.flatMap((value) => (Array.isArray(value) ? value : [value]));
+
   if (flat.length === 0) {
     throw new TypeError('JQL list conditions require at least one value');
   }
+
   return flat;
 }
 
@@ -156,9 +198,16 @@ export class JqlField {
     return new TerminalClause(`${this.name} ${operator} ${formatJqlOperand(value)}`);
   }
 
-  private list(operator: string, values: Array<JqlOperand | JqlOperand[]>, predicates?: JqlHistoryPredicates): JqlClause {
+  private list(
+    operator: string,
+    values: Array<JqlOperand | JqlOperand[]>,
+    predicates?: JqlHistoryPredicates,
+  ): JqlClause {
     const rendered = flattenValues(values).map((value) => formatJqlOperand(value));
-    return new TerminalClause(`${this.name} ${operator} (${rendered.join(', ')})${renderPredicates(predicates)}`);
+
+    return new TerminalClause(
+      `${this.name} ${operator} (${rendered.join(', ')})${renderPredicates(predicates)}`,
+    );
   }
 
   /** `field = value` */
@@ -223,12 +272,16 @@ export class JqlField {
 
   /** `field WAS value [predicates]` */
   was(value: JqlOperand, predicates?: JqlHistoryPredicates): JqlClause {
-    return new TerminalClause(`${this.name} WAS ${formatJqlOperand(value)}${renderPredicates(predicates)}`);
+    return new TerminalClause(
+      `${this.name} WAS ${formatJqlOperand(value)}${renderPredicates(predicates)}`,
+    );
   }
 
   /** `field WAS NOT value [predicates]` */
   wasNot(value: JqlOperand, predicates?: JqlHistoryPredicates): JqlClause {
-    return new TerminalClause(`${this.name} WAS NOT ${formatJqlOperand(value)}${renderPredicates(predicates)}`);
+    return new TerminalClause(
+      `${this.name} WAS NOT ${formatJqlOperand(value)}${renderPredicates(predicates)}`,
+    );
   }
 
   /** `field WAS IN (a, b, …) [predicates]` */
@@ -414,6 +467,7 @@ export class JqlBuilder {
 
   private append(connector: 'AND' | 'OR', input: JqlClauseInput): this {
     this.clauses.push({ connector, clause: toClause(input) });
+
     return this;
   }
 
@@ -444,9 +498,11 @@ export class JqlBuilder {
 
   private shorthand(name: string, values: JqlOperand[]): this {
     const target = new JqlField(name);
+
     if (values.length === 0) {
       throw new TypeError(`${name}() requires at least one value`);
     }
+
     return this.and(values.length === 1 ? target.eq(values[0]) : target.in(values));
   }
 
@@ -513,6 +569,7 @@ export class JqlBuilder {
    */
   orderBy(name: string, direction: JqlSortDirection = 'ASC'): this {
     this.sorts.push({ field: formatJqlField(name), direction });
+
     return this;
   }
 
@@ -522,16 +579,22 @@ export class JqlBuilder {
    */
   build(): string {
     let query = '';
+
     const wrapComposites = this.clauses.length > 1;
+
     for (const { connector, clause } of this.clauses) {
       const isComposite = clause instanceof LogicalClause || clause instanceof RawClause;
       const rendered = wrapComposites && isComposite ? `(${clause.toJql()})` : clause.toJql();
+
       query = query.length === 0 ? rendered : `${query} ${connector} ${rendered}`;
     }
+
     if (this.sorts.length > 0) {
       const orderBy = this.sorts.map((sort) => `${sort.field} ${sort.direction}`).join(', ');
+
       query = query.length === 0 ? `ORDER BY ${orderBy}` : `${query} ORDER BY ${orderBy}`;
     }
+
     return query;
   }
 
@@ -549,13 +612,19 @@ function renderTemplateValue(value: JqlTemplateValue): string {
   if (value === null || value === undefined) {
     throw new TypeError('JQL template values must not be null or undefined');
   }
-  if (value instanceof JqlClause || value instanceof JqlBuilder) return value.toString();
+
+  if (value instanceof JqlClause || value instanceof JqlBuilder) {
+    return value.toString();
+  }
+
   if (Array.isArray(value)) {
     if (value.length === 0) {
       throw new TypeError('JQL template list values must not be empty');
     }
+
     return `(${value.map((item: string | number) => formatJqlOperand(item)).join(', ')})`;
   }
+
   return formatJqlOperand(value as JqlOperand);
 }
 
@@ -582,13 +651,20 @@ function renderTemplateValue(value: JqlTemplateValue): string {
  */
 export function jql(): JqlBuilder;
 export function jql(strings: TemplateStringsArray, ...values: JqlTemplateValue[]): string;
-export function jql(strings?: TemplateStringsArray, ...values: JqlTemplateValue[]): JqlBuilder | string {
+
+export function jql(
+  strings?: TemplateStringsArray,
+  ...values: JqlTemplateValue[]
+): JqlBuilder | string {
   if (strings === undefined) {
     return new JqlBuilder();
   }
-  let query = strings[0];
+
+  let [query] = strings;
+
   for (let i = 0; i < values.length; i += 1) {
     query += renderTemplateValue(values[i]) + strings[i + 1];
   }
+
   return query.trim();
 }

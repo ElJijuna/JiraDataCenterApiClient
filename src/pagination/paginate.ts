@@ -44,13 +44,18 @@ export async function* paginate<T>(
   options: PaginateOptions = {},
 ): AsyncGenerator<T, void, undefined> {
   const pageSize = options.pageSize ?? 50;
+
   if (!Number.isInteger(pageSize) || pageSize <= 0) {
     throw new TypeError(`pageSize must be a positive integer, got: ${options.pageSize}`);
   }
+
   if (options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 0)) {
     throw new TypeError(`limit must be a non-negative integer, got: ${options.limit}`);
   }
-  if (options.limit === 0) return;
+
+  if (options.limit === 0) {
+    return;
+  }
 
   let startAt = 0;
   let yielded = 0;
@@ -63,10 +68,14 @@ export async function* paginate<T>(
     }
 
     const page = await fetchPage(startAt, pageSize);
+
     for (const item of page.items) {
       yield item;
       yielded += 1;
-      if (options.limit !== undefined && yielded >= options.limit) return;
+
+      if (options.limit !== undefined && yielded >= options.limit) {
+        return;
+      }
     }
 
     startAt += page.items.length;
@@ -75,6 +84,9 @@ export async function* paginate<T>(
       page.isLast === true ||
       (page.total !== undefined && startAt >= page.total) ||
       (page.total === undefined && page.isLast === undefined && page.items.length < pageSize);
-    if (exhausted) return;
+
+    if (exhausted) {
+      return;
+    }
   }
 }

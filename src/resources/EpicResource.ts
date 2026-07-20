@@ -1,10 +1,10 @@
-import type { JiraEpic } from '../domain/Epic';
 import type { BoardIssuesParams } from '../domain/Board';
-import type { JiraSearchResponse } from '../domain/IssueSearch';
+import type { JiraEpic } from '../domain/Epic';
 import type { JiraIssue } from '../domain/Issue';
-import type { RequestFn } from './IssueResource';
+import type { JiraSearchResponse } from '../domain/IssueSearch';
 import type { PaginateOptions } from '../pagination/paginate';
 import { paginateIssues } from './BoardResource';
+import type { RequestFn } from './IssueResource';
 
 /**
  * Represents a Jira Software epic resource with chainable async methods.
@@ -47,6 +47,7 @@ export class EpicResource implements PromiseLike<JiraEpic> {
     onfulfilled?: ((value: JiraEpic) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -90,6 +91,12 @@ export class EpicResource implements PromiseLike<JiraEpic> {
     params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
     options?: PaginateOptions,
   ): AsyncGenerator<JiraIssue, void, undefined> {
-    return paginateIssues(this.request, `${this.basePath}/issue`, this.agileApiPath, params, options);
+    return paginateIssues(
+      this.request,
+      `${this.basePath}/issue`,
+      this.agileApiPath,
+      params,
+      options,
+    );
   }
 }

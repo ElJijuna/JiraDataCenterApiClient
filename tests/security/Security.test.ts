@@ -8,6 +8,7 @@ describe('Security', () => {
 
     it('strips a trailing slash from apiUrl', () => {
       const security = new Security('https://jira.example.com/', 'user', 'token');
+
       expect(security.getApiUrl()).toBe('https://jira.example.com');
     });
 
@@ -22,6 +23,7 @@ describe('Security', () => {
   describe('getApiUrl', () => {
     it('returns the base URL without trailing slash', () => {
       const security = new Security('https://jira.example.com', 'user', 'token');
+
       expect(security.getApiUrl()).toBe('https://jira.example.com');
     });
   });
@@ -30,6 +32,7 @@ describe('Security', () => {
     it('returns a Basic auth header with Base64-encoded credentials', () => {
       const security = new Security('https://jira.example.com', 'user', 'my-token');
       const encoded = Buffer.from('user:my-token').toString('base64');
+
       expect(security.getAuthorizationHeader()).toBe(`Basic ${encoded}`);
     });
   });
@@ -39,6 +42,7 @@ describe('Security', () => {
       const security = new Security('https://jira.example.com', 'user', 'my-token');
       const headers = security.getHeaders();
       const encoded = Buffer.from('user:my-token').toString('base64');
+
       expect(headers).toEqual({
         Authorization: `Basic ${encoded}`,
         'Content-Type': 'application/json',

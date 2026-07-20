@@ -39,14 +39,19 @@ export class JiraApiError extends Error {
     this.statusText = statusText;
     this.errorMessages = [];
     this.errors = {};
+
     if (body !== null && typeof body === 'object') {
       const { errorMessages, errors } = body as { errorMessages?: unknown; errors?: unknown };
+
       if (Array.isArray(errorMessages)) {
         this.errorMessages = errorMessages.filter((m): m is string => typeof m === 'string');
       }
+
       if (errors !== null && typeof errors === 'object') {
         for (const [key, value] of Object.entries(errors as Record<string, unknown>)) {
-          if (typeof value === 'string') this.errors[key] = value;
+          if (typeof value === 'string') {
+            this.errors[key] = value;
+          }
         }
       }
     }

@@ -1,7 +1,16 @@
-import type { JiraProject, JiraProjectStatus, JiraProjectRole, ProjectsParams } from '../domain/Project';
 import type { JiraComponent } from '../domain/Component';
+import type {
+  CreateMetaParams,
+  JiraCreateMetaFields,
+  JiraCreateMetaIssueTypes,
+} from '../domain/Meta';
+import type {
+  JiraProject,
+  JiraProjectRole,
+  JiraProjectStatus,
+  ProjectsParams,
+} from '../domain/Project';
 import type { JiraVersion } from '../domain/Version';
-import type { CreateMetaParams, JiraCreateMetaFields, JiraCreateMetaIssueTypes } from '../domain/Meta';
 import type { RequestFn } from './IssueResource';
 
 /**
@@ -49,6 +58,7 @@ export class ProjectResource implements PromiseLike<JiraProject> {
     onfulfilled?: ((value: JiraProject) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -156,7 +166,10 @@ export class ProjectResource implements PromiseLike<JiraProject> {
    * @param params - Optional: `startAt`, `maxResults`
    * @returns A paged response of field metadata
    */
-  async createmetaFields(issueTypeId: string, params?: CreateMetaParams): Promise<JiraCreateMetaFields> {
+  async createmetaFields(
+    issueTypeId: string,
+    params?: CreateMetaParams,
+  ): Promise<JiraCreateMetaFields> {
     return this.request<JiraCreateMetaFields>(
       `/issue/createmeta/${this.projectIdOrKey}/issuetypes/${issueTypeId}`,
       params as Record<string, string | number | boolean>,

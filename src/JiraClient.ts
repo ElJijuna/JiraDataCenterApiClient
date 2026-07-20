@@ -1,49 +1,50 @@
-import { Security } from './security/Security';
-import { JiraApiError } from './errors/JiraApiError';
-import { quoteJqlString } from './jql/JqlEscape';
-import type { JqlBuilder, JqlClause } from './jql/JqlBuilder';
-import { IssueResource, type RequestFn, type RequestBodyFn } from './resources/IssueResource';
-import { ProjectResource } from './resources/ProjectResource';
-import { BoardResource } from './resources/BoardResource';
-import { MetricsResource } from './resources/MetricsResource';
-import type { JiraIssue } from './domain/Issue';
-import type { JiraProject, ProjectsParams } from './domain/Project';
-import type { JiraUser, UserActivityParams, UserSearchParams } from './domain/User';
-import type { JiraIssueType } from './domain/IssueType';
-import type { JiraPriority } from './domain/Priority';
-import type { JiraStatus } from './domain/Status';
+import type { JiraAttachment, JiraAttachmentMeta } from './domain/Attachment';
+import type { BoardsParams, JiraBoard } from './domain/Board';
+import type { JiraCustomFieldOption } from './domain/CustomFieldOption';
+import type { DashboardsParams, JiraDashboard, JiraDashboardsResponse } from './domain/Dashboard';
 import type { JiraField } from './domain/Field';
-import type { JiraFilter } from './domain/Filter';
-import type { JiraIssueLinkType } from './domain/IssueLink';
-import type { JiraBoard, BoardsParams } from './domain/Board';
-import type { JiraSearchResponse, SearchParams, SearchPostParams } from './domain/IssueSearch';
-import type { PagedResponse } from './domain/Pagination';
+import type { JiraFilter, JiraFilterColumn, JiraFilterPermission } from './domain/Filter';
 import type {
-  JiraWorklog,
-  JiraWorklogDeletedResponse,
-  JiraWorklogUpdatedResponse,
-  WorklogSinceParams,
-} from './domain/Worklog';
+  GroupMembersParams,
+  GroupsPickerParams,
+  JiraGroupsPickerResponse,
+} from './domain/Group';
+import type { JiraIssue, JiraResolution } from './domain/Issue';
+import type { JiraIssueLinkType } from './domain/IssueLink';
+import type { IssuePickerParams, JiraIssuePickerResponse } from './domain/IssuePicker';
+import type { JiraSearchResponse, SearchParams, SearchPostParams } from './domain/IssueSearch';
+import type { JiraIssueType } from './domain/IssueType';
 import type {
   JiraJqlAutocompleteData,
   JiraJqlSuggestionsResponse,
   JqlSuggestionsParams,
   JqlValidationResult,
 } from './domain/Jql';
-import { EpicResource } from './resources/EpicResource';
-import { paginate, type PaginateOptions } from './pagination/paginate';
-import type { JiraResolution } from './domain/Issue';
-import type { JiraStatusCategory } from './domain/Status';
-import type { JiraServerInfo } from './domain/ServerInfo';
+import type { PagedResponse } from './domain/Pagination';
 import type { JiraPermissionsResponse, MyPermissionsParams } from './domain/Permission';
-import type { IssuePickerParams, JiraIssuePickerResponse } from './domain/IssuePicker';
-import type { JiraAttachment, JiraAttachmentMeta } from './domain/Attachment';
-import type { GroupMembersParams, GroupsPickerParams, JiraGroupsPickerResponse } from './domain/Group';
-import type { DashboardsParams, JiraDashboard, JiraDashboardsResponse } from './domain/Dashboard';
+import type { JiraPriority } from './domain/Priority';
+import type { JiraProject, ProjectsParams } from './domain/Project';
 import type { JiraProjectCategory } from './domain/ProjectCategory';
+import type { JiraServerInfo } from './domain/ServerInfo';
+import type { JiraStatus, JiraStatusCategory } from './domain/Status';
+import type { JiraUser, UserActivityParams, UserSearchParams } from './domain/User';
 import type { JiraWorkflow } from './domain/Workflow';
-import type { JiraCustomFieldOption } from './domain/CustomFieldOption';
-import type { JiraFilterColumn, JiraFilterPermission } from './domain/Filter';
+import type {
+  JiraWorklog,
+  JiraWorklogDeletedResponse,
+  JiraWorklogUpdatedResponse,
+  WorklogSinceParams,
+} from './domain/Worklog';
+import { JiraApiError } from './errors/JiraApiError';
+import type { JqlBuilder, JqlClause } from './jql/JqlBuilder';
+import { quoteJqlString } from './jql/JqlEscape';
+import { type PaginateOptions, paginate } from './pagination/paginate';
+import { BoardResource } from './resources/BoardResource';
+import { EpicResource } from './resources/EpicResource';
+import { IssueResource, type RequestFn } from './resources/IssueResource';
+import { MetricsResource } from './resources/MetricsResource';
+import { ProjectResource } from './resources/ProjectResource';
+import { Security } from './security/Security';
 
 /**
  * Payload emitted on every HTTP request made by {@link JiraClient}.
@@ -196,7 +197,10 @@ export class JiraClient {
   private readonly agileApiPath: string;
   private readonly timeoutMs?: number;
   private readonly retryConfig: Required<JiraRetryOptions>;
-  private readonly listeners: Map<keyof JiraClientEvents, JiraClientEvents[keyof JiraClientEvents][]> = new Map();
+  private readonly listeners: Map<
+    keyof JiraClientEvents,
+    JiraClientEvents[keyof JiraClientEvents][]
+  > = new Map();
   /** Lightweight issue/user/project metrics derived from Jira Data Center REST and JQL. */
   readonly metrics: MetricsResource;
 
@@ -204,7 +208,15 @@ export class JiraClient {
    * @param options - Connection and authentication options
    * @throws {TypeError} If `apiUrl` is not a valid URL
    */
-  constructor({ apiUrl, apiPath = 'rest/api/latest', agileApiPath = 'rest/agile/latest', user, token, timeoutMs, retry }: JiraClientOptions) {
+  constructor({
+    apiUrl,
+    apiPath = 'rest/api/latest',
+    agileApiPath = 'rest/agile/latest',
+    user,
+    token,
+    timeoutMs,
+    retry,
+  }: JiraClientOptions) {
     this.security = new Security(apiUrl, user, token);
     this.apiPath = apiPath.replace(/^\/|\/$/g, '');
     this.agileApiPath = agileApiPath.replace(/^\/|\/$/g, '');
@@ -231,8 +243,10 @@ export class JiraClient {
    */
   on<K extends keyof JiraClientEvents>(event: K, callback: JiraClientEvents[K]): this {
     const callbacks = this.listeners.get(event) ?? [];
+
     callbacks.push(callback);
     this.listeners.set(event, callbacks);
+
     return this;
   }
 
@@ -241,6 +255,7 @@ export class JiraClient {
     payload: Parameters<JiraClientEvents[K]>[0],
   ): void {
     const callbacks = this.listeners.get(event) ?? [];
+
     for (const cb of callbacks) {
       (cb as (p: typeof payload) => void)(payload);
     }
@@ -259,26 +274,49 @@ export class JiraClient {
     signal?: AbortSignal,
   ): Promise<Response> {
     const { retries, baseDelayMs, maxDelayMs, retryOn } = this.retryConfig;
+
     for (let attempt = 0; ; attempt += 1) {
       if (signal?.aborted) {
         throw toError(signal.reason, 'Request aborted');
       }
+
       const attemptSignal = composeSignal(this.timeoutMs, signal);
+
       try {
         const response = await fetch(url, { ...init, signal: attemptSignal.signal });
+
         if (!response.ok && retryOn.includes(response.status) && attempt < retries) {
-          const delayMs = Math.min(retryAfterMs(response) ?? baseDelayMs * 2 ** attempt, maxDelayMs);
-          this.emit('retry', { url, method, attempt: attempt + 1, delayMs, statusCode: response.status });
+          const delayMs = Math.min(
+            retryAfterMs(response) ?? baseDelayMs * 2 ** attempt,
+            maxDelayMs,
+          );
+
+          this.emit('retry', {
+            url,
+            method,
+            attempt: attempt + 1,
+            delayMs,
+            statusCode: response.status,
+          });
           await sleep(delayMs, signal);
           continue;
         }
+
         return response;
       } catch (err) {
         if (signal?.aborted || attempt >= retries) {
           throw err;
         }
+
         const delayMs = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
-        this.emit('retry', { url, method, attempt: attempt + 1, delayMs, error: toError(err, 'Request failed') });
+
+        this.emit('retry', {
+          url,
+          method,
+          attempt: attempt + 1,
+          delayMs,
+          error: toError(err, 'Request failed'),
+        });
         await sleep(delayMs, signal);
       } finally {
         attemptSignal.cleanup();
@@ -299,44 +337,114 @@ export class JiraClient {
     const base = `${this.security.getApiUrl()}/${apiPath}${path}`;
     const url = buildUrl(base, params);
     const startedAt = new Date();
+
     let statusCode: number | undefined;
+
     try {
-      const response = await this.fetchWithRetry(url, { headers: this.security.getHeaders() }, 'GET', options?.signal);
+      const response = await this.fetchWithRetry(
+        url,
+        { headers: this.security.getHeaders() },
+        'GET',
+        options?.signal,
+      );
+
       statusCode = response.status;
+
       if (!response.ok) {
-        throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
+        throw new JiraApiError(
+          response.status,
+          response.statusText,
+          await parseErrorBody(response),
+        );
       }
-      const data = await response.json() as T;
-      this.emit('request', { url, method: 'GET', startedAt, finishedAt: new Date(), durationMs: Date.now() - startedAt.getTime(), statusCode });
+
+      const data = (await response.json()) as T;
+
+      this.emit('request', {
+        url,
+        method: 'GET',
+        startedAt,
+        finishedAt: new Date(),
+        durationMs: Date.now() - startedAt.getTime(),
+        statusCode,
+      });
+
       return data;
     } catch (err) {
       const finishedAt = new Date();
-      this.emit('request', { url, method: 'GET', startedAt, finishedAt, durationMs: finishedAt.getTime() - startedAt.getTime(), statusCode, error: err instanceof Error ? err : new Error(String(err)) });
+
+      this.emit('request', {
+        url,
+        method: 'GET',
+        startedAt,
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        statusCode,
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+
       throw err;
     }
   }
 
-  private async requestPost<T>(path: string, body: unknown, options?: { apiPath?: string; signal?: AbortSignal }): Promise<T> {
+  private async requestPost<T>(
+    path: string,
+    body: unknown,
+    options?: { apiPath?: string; signal?: AbortSignal },
+  ): Promise<T> {
     const apiPath = options?.apiPath ?? this.apiPath;
     const url = `${this.security.getApiUrl()}/${apiPath}${path}`;
     const startedAt = new Date();
+
     let statusCode: number | undefined;
+
     try {
-      const response = await this.fetchWithRetry(url, {
-        method: 'POST',
-        headers: this.security.getHeaders(),
-        body: JSON.stringify(body),
-      }, 'POST', options?.signal);
+      const response = await this.fetchWithRetry(
+        url,
+        {
+          method: 'POST',
+          headers: this.security.getHeaders(),
+          body: JSON.stringify(body),
+        },
+        'POST',
+        options?.signal,
+      );
+
       statusCode = response.status;
+
       if (!response.ok) {
-        throw new JiraApiError(response.status, response.statusText, await parseErrorBody(response));
+        throw new JiraApiError(
+          response.status,
+          response.statusText,
+          await parseErrorBody(response),
+        );
       }
-      const data = await response.json() as T;
-      this.emit('request', { url, method: 'POST', startedAt, finishedAt: new Date(), durationMs: Date.now() - startedAt.getTime(), statusCode });
+
+      const data = (await response.json()) as T;
+
+      this.emit('request', {
+        url,
+        method: 'POST',
+        startedAt,
+        finishedAt: new Date(),
+        durationMs: Date.now() - startedAt.getTime(),
+        statusCode,
+      });
+
       return data;
     } catch (err) {
       const finishedAt = new Date();
-      this.emit('request', { url, method: 'POST', startedAt, finishedAt, durationMs: finishedAt.getTime() - startedAt.getTime(), statusCode, error: err instanceof Error ? err : new Error(String(err)) });
+
+      this.emit('request', {
+        url,
+        method: 'POST',
+        startedAt,
+        finishedAt,
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        statusCode,
+        error: err instanceof Error ? err : new Error(String(err)),
+      });
+
       throw err;
     }
   }
@@ -367,6 +475,7 @@ export class JiraClient {
       params?: Record<string, string | number | boolean>,
       options?: { apiPath?: string },
     ) => this.request<T>(path, params, options);
+
     return new IssueResource(requestFn, issueIdOrKey);
   }
 
@@ -436,6 +545,7 @@ export class JiraClient {
       params?: Record<string, string | number | boolean>,
       options?: { apiPath?: string },
     ) => this.request<T>(path, params, options);
+
     return new ProjectResource(requestFn, projectIdOrKey);
   }
 
@@ -523,11 +633,16 @@ export class JiraClient {
     }
 
     const activityJql = names
-      .map((username) => `issuekey IN updatedBy(${[
-        quoteJqlString(username),
-        from ? quoteJqlString(from) : undefined,
-        to ? quoteJqlString(to) : undefined,
-      ].filter(Boolean).join(', ')})`)
+      .map(
+        (username) =>
+          `issuekey IN updatedBy(${[
+            quoteJqlString(username),
+            from ? quoteJqlString(from) : undefined,
+            to ? quoteJqlString(to) : undefined,
+          ]
+            .filter(Boolean)
+            .join(', ')})`,
+      )
       .join(' OR ');
     const combinedJql = jql ? `(${activityJql}) AND (${jql})` : activityJql;
 
@@ -571,10 +686,7 @@ export class JiraClient {
    * `POST /rest/api/latest/worklog/list`
    */
   async worklogsList(ids: Array<string | number>): Promise<JiraWorklog[]> {
-    return this.requestPost<JiraWorklog[]>(
-      '/worklog/list',
-      { ids: ids.map((id) => Number(id)) },
-    );
+    return this.requestPost<JiraWorklog[]>('/worklog/list', { ids: ids.map((id) => Number(id)) });
   }
 
   // ─── Boards (Agile) ──────────────────────────────────────────────────────────
@@ -618,6 +730,7 @@ export class JiraClient {
       params?: Record<string, string | number | boolean>,
       options?: { apiPath?: string },
     ) => this.request<T>(path, params, options);
+
     return new BoardResource(requestFn, this.agileApiPath, boardId);
   }
 
@@ -644,6 +757,7 @@ export class JiraClient {
       params?: Record<string, string | number | boolean>,
       options?: { apiPath?: string },
     ) => this.request<T>(path, params, options);
+
     return new EpicResource(requestFn, this.agileApiPath, epicIdOrKey);
   }
 
@@ -740,7 +854,9 @@ export class JiraClient {
    * @returns The status category object
    */
   async statusCategory(idOrKey: string | number): Promise<JiraStatusCategory> {
-    return this.request<JiraStatusCategory>(`/statuscategory/${encodeURIComponent(String(idOrKey))}`);
+    return this.request<JiraStatusCategory>(
+      `/statuscategory/${encodeURIComponent(String(idOrKey))}`,
+    );
   }
 
   /**
@@ -1090,6 +1206,7 @@ export class JiraClient {
         { ...params, startAt, maxResults },
         { signal: options?.signal },
       );
+
       return { items: page.issues, total: page.total };
     }, options);
   }
@@ -1109,9 +1226,10 @@ export class JiraClient {
     return paginate<JiraBoard>(async (startAt, maxResults) => {
       const page = await this.request<PagedResponse<JiraBoard>>(
         '/board',
-        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { ...params, startAt, maxResults },
         { apiPath: this.agileApiPath, signal: options?.signal },
       );
+
       return { items: page.values, total: page.total, isLast: page.isLast };
     }, options);
   }
@@ -1132,9 +1250,10 @@ export class JiraClient {
     return paginate<JiraUser>(async (startAt, maxResults) => {
       const page = await this.request<JiraUser[]>(
         '/user/search',
-        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { ...params, startAt, maxResults },
         { signal: options?.signal },
       );
+
       return { items: page };
     }, options);
   }
@@ -1153,9 +1272,10 @@ export class JiraClient {
     return paginate<JiraUser>(async (startAt, maxResults) => {
       const page = await this.request<PagedResponse<JiraUser>>(
         '/group/member',
-        { ...params, startAt, maxResults } as unknown as Record<string, string | number | boolean>,
+        { ...params, startAt, maxResults },
         { signal: options?.signal },
       );
+
       return { items: page.values, total: page.total, isLast: page.isLast };
     }, options);
   }
@@ -1193,7 +1313,9 @@ export class JiraClient {
    * });
    * ```
    */
-  async jqlAutocompleteSuggestions(params: JqlSuggestionsParams): Promise<JiraJqlSuggestionsResponse> {
+  async jqlAutocompleteSuggestions(
+    params: JqlSuggestionsParams,
+  ): Promise<JiraJqlSuggestionsResponse> {
     return this.request<JiraJqlSuggestionsResponse>(
       '/jql/autocompletedata/suggestions',
       params as unknown as Record<string, string | number | boolean>,
@@ -1224,11 +1346,16 @@ export class JiraClient {
         maxResults: 0,
         validateQuery: true,
       });
+
       return { valid: true, errors: [] };
     } catch (err) {
       if (err instanceof JiraApiError && err.status === 400) {
-        return { valid: false, errors: err.errorMessages.length > 0 ? err.errorMessages : [err.message] };
+        return {
+          valid: false,
+          errors: err.errorMessages.length > 0 ? err.errorMessages : [err.message],
+        };
       }
+
       throw err;
     }
   }
@@ -1267,8 +1394,12 @@ export class JiraClient {
    * @param versionId - The version ID
    * @returns Issue counts by type
    */
-  async versionIssueCounts(versionId: string): Promise<import('./domain/Version').JiraVersionIssueCounts> {
-    return this.request<import('./domain/Version').JiraVersionIssueCounts>(`/version/${versionId}/relatedIssueCounts`);
+  async versionIssueCounts(
+    versionId: string,
+  ): Promise<import('./domain/Version').JiraVersionIssueCounts> {
+    return this.request<import('./domain/Version').JiraVersionIssueCounts>(
+      `/version/${versionId}/relatedIssueCounts`,
+    );
   }
 
   /**
@@ -1279,8 +1410,12 @@ export class JiraClient {
    * @param versionId - The version ID
    * @returns The unresolved issue count
    */
-  async versionUnresolvedIssueCount(versionId: string): Promise<import('./domain/Version').JiraVersionUnresolvedIssueCount> {
-    return this.request<import('./domain/Version').JiraVersionUnresolvedIssueCount>(`/version/${versionId}/unresolvedIssueCount`);
+  async versionUnresolvedIssueCount(
+    versionId: string,
+  ): Promise<import('./domain/Version').JiraVersionUnresolvedIssueCount> {
+    return this.request<import('./domain/Version').JiraVersionUnresolvedIssueCount>(
+      `/version/${versionId}/unresolvedIssueCount`,
+    );
   }
 }
 
@@ -1289,10 +1424,18 @@ export class JiraClient {
  * @internal
  */
 function buildUrl(base: string, params?: Record<string, string | number | boolean>): string {
-  if (!params) return base;
+  if (!params) {
+    return base;
+  }
+
   const entries = Object.entries(params).filter(([, v]) => v !== undefined);
-  if (entries.length === 0) return base;
+
+  if (entries.length === 0) {
+    return base;
+  }
+
   const search = new URLSearchParams(entries.map(([k, v]) => [k, String(v)]));
+
   return `${base}?${search.toString()}`;
 }
 
@@ -1311,8 +1454,15 @@ async function parseErrorBody(response: { json(): Promise<unknown> }): Promise<u
 
 /** @internal */
 function toError(reason: unknown, fallback: string): Error {
-  if (reason instanceof Error) return reason;
-  return new Error(reason === undefined || reason === null ? fallback : String(reason));
+  if (reason instanceof Error) {
+    return reason;
+  }
+
+  if (typeof reason === 'string' && reason.length > 0) {
+    return new Error(reason);
+  }
+
+  return new Error(fallback);
 }
 
 /**
@@ -1321,9 +1471,15 @@ function toError(reason: unknown, fallback: string): Error {
  * @internal
  */
 function retryAfterMs(response: Response): number | undefined {
-  const raw = typeof response.headers?.get === 'function' ? response.headers.get('retry-after') : null;
-  if (raw === null || raw === undefined) return undefined;
+  const raw =
+    typeof response.headers?.get === 'function' ? response.headers.get('retry-after') : null;
+
+  if (raw === null || raw === undefined) {
+    return undefined;
+  }
+
   const seconds = Number(raw);
+
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
 }
 
@@ -1332,16 +1488,26 @@ function retryAfterMs(response: Response): number | undefined {
  * caller's signal. Returns a cleanup function that must run after the attempt.
  * @internal
  */
-function composeSignal(timeoutMs?: number, outer?: AbortSignal): { signal?: AbortSignal; cleanup: () => void } {
+function composeSignal(
+  timeoutMs?: number,
+  outer?: AbortSignal,
+): { signal?: AbortSignal; cleanup: () => void } {
   if (timeoutMs === undefined && outer === undefined) {
     return { signal: undefined, cleanup: () => undefined };
   }
+
   const controller = new AbortController();
   const onOuterAbort = (): void => controller.abort(outer?.reason);
+
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   if (timeoutMs !== undefined) {
-    timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+    timer = setTimeout(
+      () => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
   }
+
   if (outer) {
     /* istanbul ignore if -- defensive: fetchWithRetry rejects aborted signals before composing */
     if (outer.aborted) {
@@ -1350,10 +1516,14 @@ function composeSignal(timeoutMs?: number, outer?: AbortSignal): { signal?: Abor
       outer.addEventListener('abort', onOuterAbort, { once: true });
     }
   }
+
   return {
     signal: controller.signal,
     cleanup: () => {
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+
       outer?.removeEventListener('abort', onOuterAbort);
     },
   };
@@ -1367,8 +1537,10 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(toError(signal.reason, 'Request aborted'));
+
       return;
     }
+
     const onAbort = (): void => {
       clearTimeout(timer);
       reject(toError(signal?.reason, 'Request aborted'));
@@ -1377,6 +1549,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       signal?.removeEventListener('abort', onAbort);
       resolve();
     }, ms);
+
     signal?.addEventListener('abort', onAbort, { once: true });
   });
 }

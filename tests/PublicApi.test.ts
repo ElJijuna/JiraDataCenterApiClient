@@ -16,8 +16,11 @@ describe('public API surface', () => {
   it('exports the JQL utilities', () => {
     expect(api.jql().project('OPS').build()).toBe('project = "OPS"');
     expect(api.field('status').eq('Open').toJql()).toBe('status = "Open"');
-    expect(api.and(api.field('a').eq(1), api.or(api.field('b').eq(2), api.not(api.field('c').eq(3)))).toJql())
-      .toBe('a = 1 AND (b = 2 OR NOT (c = 3))');
+    expect(
+      api
+        .and(api.field('a').eq(1), api.or(api.field('b').eq(2), api.not(api.field('c').eq(3))))
+        .toJql(),
+    ).toBe('a = 1 AND (b = 2 OR NOT (c = 3))');
     expect(api.raw('x = 1')).toBeInstanceOf(api.JqlRaw);
     expect(api.JqlFunctions.currentUser().toJql()).toBe('currentUser()');
     expect(api.quoteJqlString('a"b')).toBe('"a\\"b"');

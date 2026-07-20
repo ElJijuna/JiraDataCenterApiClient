@@ -23,6 +23,7 @@ export class JqlRaw {
     if (typeof jql !== 'string' || jql.trim().length === 0) {
       throw new TypeError('Raw JQL must be a non-empty string');
     }
+
     this.jql = jql.trim();
   }
 

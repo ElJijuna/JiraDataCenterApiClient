@@ -6,6 +6,7 @@ function toBase64(value: string): string {
   if (typeof btoa !== 'undefined') {
     return btoa(value);
   }
+
   return Buffer.from(value).toString('base64');
 }
 
@@ -42,6 +43,7 @@ export class Security {
     if (!URL.canParse(apiUrl)) {
       throw new TypeError(`Invalid apiUrl: "${apiUrl}" is not a valid URL`);
     }
+
     this.apiUrl = apiUrl.replace(/\/$/, '');
     this.authorizationHeader = `Basic ${toBase64(`${user}:${token}`)}`;
   }

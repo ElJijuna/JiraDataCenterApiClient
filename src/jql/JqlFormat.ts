@@ -1,4 +1,4 @@
-import { tokenizeJql, type JqlToken } from './JqlLexer';
+import { type JqlToken, tokenizeJql } from './JqlLexer';
 
 /** Options for {@link formatJql}. */
 export interface JqlFormatOptions {
@@ -12,8 +12,25 @@ export interface JqlFormatOptions {
 
 /** Keywords normalized to uppercase by {@link formatJql}. All are JQL-reserved, so bare use as a value is invalid anyway. */
 const KEYWORDS = new Set([
-  'and', 'or', 'not', 'in', 'is', 'was', 'changed', 'empty', 'null',
-  'order', 'by', 'asc', 'desc', 'on', 'before', 'after', 'during', 'from', 'to',
+  'and',
+  'or',
+  'not',
+  'in',
+  'is',
+  'was',
+  'changed',
+  'empty',
+  'null',
+  'order',
+  'by',
+  'asc',
+  'desc',
+  'on',
+  'before',
+  'after',
+  'during',
+  'from',
+  'to',
 ]);
 
 /** @internal */
@@ -50,11 +67,13 @@ function isWordKeyword(token: JqlToken, keyword: string): boolean {
 export function formatJql(query: string, options: JqlFormatOptions = {}): string {
   const tokens = tokenizeJql(query);
   const firstError = tokens.find((token) => token.type === 'error');
+
   if (firstError) {
     throw new TypeError(`Cannot format invalid JQL: ${firstError.message ?? 'unexpected input'}`);
   }
 
   const multiline = options.multiline === true;
+
   let output = '';
   let depth = 0;
 
@@ -63,13 +82,19 @@ export function formatJql(query: string, options: JqlFormatOptions = {}): string
     const prev = tokens[i - 1];
 
     let separator = ' ';
+
     if (prev === undefined) {
       separator = '';
     } else if (token.type === 'rparen' || token.type === 'comma') {
       separator = '';
     } else if (prev.type === 'lparen') {
       separator = '';
-    } else if (token.type === 'lparen' && prev.type === 'word' && prev.end === token.start && !KEYWORDS.has(prev.value.toLowerCase())) {
+    } else if (
+      token.type === 'lparen' &&
+      prev.type === 'word' &&
+      prev.end === token.start &&
+      !KEYWORDS.has(prev.value.toLowerCase())
+    ) {
       // Function call: keep `openSprints(` attached, unlike list parens after IN/NOT.
       separator = '';
     } else if (multiline && depth === 0) {
@@ -80,10 +105,16 @@ export function formatJql(query: string, options: JqlFormatOptions = {}): string
       }
     }
 
-    if (token.type === 'lparen') depth += 1;
-    if (token.type === 'rparen') depth = Math.max(0, depth - 1);
+    if (token.type === 'lparen') {
+      depth += 1;
+    }
+
+    if (token.type === 'rparen') {
+      depth = Math.max(0, depth - 1);
+    }
 
     const text = token.type === 'word' ? normalizeWord(token) : token.value;
+
     output += separator + text;
   }
 

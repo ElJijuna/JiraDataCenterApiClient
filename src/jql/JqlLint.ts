@@ -1,4 +1,4 @@
-import { tokenizeJql, type JqlToken } from './JqlLexer';
+import { type JqlToken, tokenizeJql } from './JqlLexer';
 
 /** A problem found by {@link lintJql}. */
 export interface JqlLintIssue {
@@ -22,11 +22,17 @@ function isKeyword(token: JqlToken | undefined, keyword: string): boolean {
 
 /** @internal */
 function isLogical(token: JqlToken | undefined): boolean {
-  return token !== undefined && token.type === 'word' && LOGICAL_KEYWORDS.has(token.value.toLowerCase());
+  return (
+    token !== undefined && token.type === 'word' && LOGICAL_KEYWORDS.has(token.value.toLowerCase())
+  );
 }
 
 /** @internal */
-function issueAt(token: JqlToken, message: string, severity: 'error' | 'warning' = 'error'): JqlLintIssue {
+function issueAt(
+  token: JqlToken,
+  message: string,
+  severity: 'error' | 'warning' = 'error',
+): JqlLintIssue {
   return { severity, message, start: token.start, end: token.end };
 }
 
@@ -53,9 +59,13 @@ function issueAt(token: JqlToken, message: string, severity: 'error' | 'warning'
 export function lintJql(query: string): JqlLintIssue[] {
   const issues: JqlLintIssue[] = [];
   const tokens = tokenizeJql(query);
-  if (tokens.length === 0) return issues;
+
+  if (tokens.length === 0) {
+    return issues;
+  }
 
   const parenStack: JqlToken[] = [];
+
   let orderByIndex = -1;
 
   for (let i = 0; i < tokens.length; i += 1) {
@@ -69,21 +79,35 @@ export function lintJql(query: string): JqlLintIssue[] {
     }
 
     if (orderByIndex !== -1) {
-      if (token.type === 'comma') continue;
-      const isSortToken = token.type === 'string' || token.type === 'number' || (token.type === 'word' && !isLogical(token));
+      if (token.type === 'comma') {
+        continue;
+      }
+
+      const isSortToken =
+        token.type === 'string' ||
+        token.type === 'number' ||
+        (token.type === 'word' && !isLogical(token));
+
       if (!isSortToken) {
         issues.push(issueAt(token, `Unexpected "${token.value}" in ORDER BY clause`));
-      } else if (token.type === 'word' && ORDER_BY_ALLOWED.has(token.value.toLowerCase()) && prev?.type === 'comma') {
+      } else if (
+        token.type === 'word' &&
+        ORDER_BY_ALLOWED.has(token.value.toLowerCase()) &&
+        prev?.type === 'comma'
+      ) {
         issues.push(issueAt(token, `"${token.value.toUpperCase()}" must follow a field name`));
       }
+
       continue;
     }
 
     if (token.type === 'lparen') {
       parenStack.push(token);
+
       if (next?.type === 'rparen') {
         issues.push(issueAt(token, 'Empty parentheses'));
       }
+
       continue;
     }
 
@@ -93,6 +117,7 @@ export function lintJql(query: string): JqlLintIssue[] {
       } else {
         parenStack.pop();
       }
+
       continue;
     }
 
@@ -100,18 +125,33 @@ export function lintJql(query: string): JqlLintIssue[] {
       if (parenStack.length === 0 && orderByIndex === -1) {
         issues.push(issueAt(token, 'Unexpected "," outside of a list or ORDER BY clause'));
       }
+
       continue;
     }
 
     if (token.type === 'operator') {
-      if (prev === undefined || prev.type === 'operator' || prev.type === 'lparen' || prev.type === 'comma' || isLogical(prev)) {
-        issues.push(issueAt(token, `Comparison operator "${token.value}" is missing its left-hand field`));
+      if (
+        prev === undefined ||
+        prev.type === 'operator' ||
+        prev.type === 'lparen' ||
+        prev.type === 'comma' ||
+        isLogical(prev)
+      ) {
+        issues.push(
+          issueAt(token, `Comparison operator "${token.value}" is missing its left-hand field`),
+        );
       }
+
       if (next === undefined || isLogical(next)) {
-        issues.push(issueAt(token, `Comparison operator "${token.value}" is missing its right-hand value`));
+        issues.push(
+          issueAt(token, `Comparison operator "${token.value}" is missing its right-hand value`),
+        );
       } else if (next.type === 'operator' || next.type === 'rparen' || next.type === 'comma') {
-        issues.push(issueAt(token, `Unexpected "${next.value}" after comparison operator "${token.value}"`));
+        issues.push(
+          issueAt(token, `Unexpected "${next.value}" after comparison operator "${token.value}"`),
+        );
       }
+
       continue;
     }
 
@@ -119,11 +159,18 @@ export function lintJql(query: string): JqlLintIssue[] {
       if (prev === undefined) {
         issues.push(issueAt(token, `Query must not start with "${token.value.toUpperCase()}"`));
       } else if (isLogical(prev)) {
-        issues.push(issueAt(token, `"${prev.value.toUpperCase()}" must not be followed by "${token.value.toUpperCase()}"`));
+        issues.push(
+          issueAt(
+            token,
+            `"${prev.value.toUpperCase()}" must not be followed by "${token.value.toUpperCase()}"`,
+          ),
+        );
       }
+
       if (next === undefined) {
         issues.push(issueAt(token, `Query must not end with "${token.value.toUpperCase()}"`));
       }
+
       continue;
     }
 
@@ -135,9 +182,15 @@ export function lintJql(query: string): JqlLintIssue[] {
     if (isKeyword(token, 'in')) {
       if (next === undefined) {
         issues.push(issueAt(token, '"IN" must be followed by a list or function'));
-      } else if (next.type !== 'lparen' && !(next.type === 'word' && tokens[i + 2]?.type === 'lparen')) {
-        issues.push(issueAt(token, '"IN" must be followed by a parenthesized list or a function call'));
+      } else if (
+        next.type !== 'lparen' &&
+        !(next.type === 'word' && tokens[i + 2]?.type === 'lparen')
+      ) {
+        issues.push(
+          issueAt(token, '"IN" must be followed by a parenthesized list or a function call'),
+        );
       }
+
       continue;
     }
 
@@ -150,7 +203,6 @@ export function lintJql(query: string): JqlLintIssue[] {
         orderByIndex = i;
         i += 1;
       }
-      continue;
     }
   }
 

@@ -1,10 +1,10 @@
-import type { JiraUser } from './User';
 import type { PaginationParams } from './Pagination';
+import type { JiraUser } from './User';
 
 /**
  * Query parameters for listing issue changelog entries.
  */
-export interface ChangelogParams extends PaginationParams {}
+export type ChangelogParams = PaginationParams;
 
 /**
  * A single field change within a changelog entry.

@@ -1,5 +1,5 @@
-import { JqlRaw } from './JqlRaw';
 import { formatJqlOperand } from './JqlEscape';
+import { JqlRaw } from './JqlRaw';
 
 /**
  * Builds a JQL function call, quoting string arguments and skipping
@@ -10,6 +10,7 @@ function fn(name: string, ...args: Array<string | number | undefined>): JqlRaw {
   const rendered = args
     .filter((arg): arg is string | number => arg !== undefined)
     .map((arg) => formatJqlOperand(arg));
+
   return new JqlRaw(`${name}(${rendered.join(', ')})`);
 }
 
@@ -65,7 +66,8 @@ export const JqlFunctions = {
   /** `futureSprints()` — issues in future sprints (Jira Software). */
   futureSprints: (): JqlRaw => fn('futureSprints'),
   /** `linkedIssues(issueKey, linkType?)` — issues linked to the given issue. */
-  linkedIssues: (issueKey: string, linkType?: string): JqlRaw => fn('linkedIssues', issueKey, linkType),
+  linkedIssues: (issueKey: string, linkType?: string): JqlRaw =>
+    fn('linkedIssues', issueKey, linkType),
   /** `issueHistory()` — issues recently viewed by the user. */
   issueHistory: (): JqlRaw => fn('issueHistory'),
   /** `votedIssues()` — issues the user has voted for. */
@@ -89,7 +91,8 @@ export const JqlFunctions = {
   /** `projectsLeadByUser(user?)` */
   projectsLeadByUser: (user?: string): JqlRaw => fn('projectsLeadByUser', user),
   /** `projectsWhereUserHasPermission(permission)` */
-  projectsWhereUserHasPermission: (permission: string): JqlRaw => fn('projectsWhereUserHasPermission', permission),
+  projectsWhereUserHasPermission: (permission: string): JqlRaw =>
+    fn('projectsWhereUserHasPermission', permission),
   /** `projectsWhereUserHasRole(role)` */
   projectsWhereUserHasRole: (role: string): JqlRaw => fn('projectsWhereUserHasRole', role),
   /** `updatedBy(user, from?, to?)` — issues updated by the user in a date range. */

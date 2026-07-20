@@ -1,13 +1,18 @@
-import type { JiraBoard, BoardIssuesParams, JiraBoardConfiguration, JiraBoardProject } from '../domain/Board';
-import type { JiraSprint, SprintsParams } from '../domain/Sprint';
+import type {
+  BoardIssuesParams,
+  JiraBoard,
+  JiraBoardConfiguration,
+  JiraBoardProject,
+} from '../domain/Board';
+import type { JiraEpic } from '../domain/Epic';
+import type { JiraIssue } from '../domain/Issue';
 import type { JiraSearchResponse } from '../domain/IssueSearch';
 import type { PagedResponse, PaginationParams } from '../domain/Pagination';
-import type { JiraEpic } from '../domain/Epic';
+import type { JiraSprint, SprintsParams } from '../domain/Sprint';
 import type { JiraVersion } from '../domain/Version';
-import type { JiraIssue } from '../domain/Issue';
+import { type PaginateOptions, paginate } from '../pagination/paginate';
 import type { RequestFn } from './IssueResource';
 import { SprintResource } from './SprintResource';
-import { paginate, type PaginateOptions } from '../pagination/paginate';
 
 /** @internal Pages through a search-shaped endpoint (`total` + `issues`). */
 export function paginateIssues(
@@ -20,9 +25,10 @@ export function paginateIssues(
   return paginate<JiraIssue>(async (startAt, maxResults) => {
     const page = await request<JiraSearchResponse>(
       path,
-      { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+      { ...params, startAt, maxResults },
       { apiPath, signal: options?.signal },
     );
+
     return { items: page.issues, total: page.total };
   }, options);
 }
@@ -72,6 +78,7 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     onfulfilled?: ((value: JiraBoard) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    // eslint-disable-next-line no-restricted-syntax -- PromiseLike implementation delegates to then()
     return this.get().then(onfulfilled, onrejected);
   }
 
@@ -94,11 +101,9 @@ export class BoardResource implements PromiseLike<JiraBoard> {
    * Useful for deriving sprint velocity, cycle time, and workflow-column metrics.
    */
   async configuration(): Promise<JiraBoardConfiguration> {
-    return this.request<JiraBoardConfiguration>(
-      `${this.basePath}/configuration`,
-      undefined,
-      { apiPath: this.agileApiPath },
-    );
+    return this.request<JiraBoardConfiguration>(`${this.basePath}/configuration`, undefined, {
+      apiPath: this.agileApiPath,
+    });
   }
 
   /**
@@ -163,9 +168,10 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     return paginate<JiraSprint>(async (startAt, maxResults) => {
       const page = await this.request<PagedResponse<JiraSprint>>(
         `${this.basePath}/sprint`,
-        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { ...params, startAt, maxResults },
         { apiPath: this.agileApiPath, signal: options?.signal },
       );
+
       return { items: page.values, total: page.total, isLast: page.isLast };
     }, options);
   }
@@ -181,7 +187,13 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
     options?: PaginateOptions,
   ): AsyncGenerator<JiraIssue, void, undefined> {
-    return paginateIssues(this.request, `${this.basePath}/issue`, this.agileApiPath, params, options);
+    return paginateIssues(
+      this.request,
+      `${this.basePath}/issue`,
+      this.agileApiPath,
+      params,
+      options,
+    );
   }
 
   /**
@@ -196,7 +208,13 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     params: Omit<BoardIssuesParams, 'startAt' | 'maxResults'> = {},
     options?: PaginateOptions,
   ): AsyncGenerator<JiraIssue, void, undefined> {
-    return paginateIssues(this.request, `${this.basePath}/backlog`, this.agileApiPath, params, options);
+    return paginateIssues(
+      this.request,
+      `${this.basePath}/backlog`,
+      this.agileApiPath,
+      params,
+      options,
+    );
   }
 
   /**
@@ -213,9 +231,10 @@ export class BoardResource implements PromiseLike<JiraBoard> {
     return paginate<JiraEpic>(async (startAt, maxResults) => {
       const page = await this.request<PagedResponse<JiraEpic>>(
         `${this.basePath}/epic`,
-        { ...params, startAt, maxResults } as Record<string, string | number | boolean>,
+        { ...params, startAt, maxResults },
         { apiPath: this.agileApiPath, signal: options?.signal },
       );
+
       return { items: page.values, total: page.total, isLast: page.isLast };
     }, options);
   }
@@ -293,7 +312,9 @@ export class BoardResource implements PromiseLike<JiraBoard> {
    * @param params - Optional: `startAt`, `maxResults`, `released`
    * @returns A paged response of versions
    */
-  async versions(params?: PaginationParams & { released?: boolean }): Promise<PagedResponse<JiraVersion>> {
+  async versions(
+    params?: PaginationParams & { released?: boolean },
+  ): Promise<PagedResponse<JiraVersion>> {
     return this.request<PagedResponse<JiraVersion>>(
       `${this.basePath}/version`,
       params as Record<string, string | number | boolean>,

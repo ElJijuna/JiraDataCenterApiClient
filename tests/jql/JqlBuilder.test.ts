@@ -1,6 +1,6 @@
-import { jql, field, and, or, not, JqlBuilder, JqlClause } from '../../src/jql/JqlBuilder';
-import { raw, JqlRaw } from '../../src/jql/JqlRaw';
+import { and, field, JqlBuilder, JqlClause, jql, not, or } from '../../src/jql/JqlBuilder';
 import { JqlFunctions } from '../../src/jql/JqlFunctions';
+import { JqlRaw, raw } from '../../src/jql/JqlRaw';
 
 describe('field()', () => {
   it('renders comparison operators', () => {
@@ -8,7 +8,11 @@ describe('field()', () => {
     expect(field('status').notEq('Closed').toJql()).toBe('status != "Closed"');
     expect(field('votes').gt(10).toJql()).toBe('votes > 10');
     expect(field('updated').gte('-7d').toJql()).toBe('updated >= "-7d"');
-    expect(field('created').lt(new Date(2026, 0, 1, 0, 0)).toJql()).toBe('created < "2026-01-01 00:00"');
+    expect(
+      field('created')
+        .lt(new Date(2026, 0, 1, 0, 0))
+        .toJql(),
+    ).toBe('created < "2026-01-01 00:00"');
     expect(field('duedate').lte('2026-12-31').toJql()).toBe('duedate <= "2026-12-31"');
     expect(field('summary').contains('timeout').toJql()).toBe('summary ~ "timeout"');
     expect(field('summary').notContains('noise').toJql()).toBe('summary !~ "noise"');
@@ -17,8 +21,12 @@ describe('field()', () => {
   it('renders IN and NOT IN with variadic values or arrays', () => {
     expect(field('status').in('Open', 'Reopened').toJql()).toBe('status IN ("Open", "Reopened")');
     expect(field('status').in(['Open', 'Reopened']).toJql()).toBe('status IN ("Open", "Reopened")');
-    expect(field('priority').notIn('Low', 'Trivial').toJql()).toBe('priority NOT IN ("Low", "Trivial")');
-    expect(field('sprint').in(JqlFunctions.openSprints()).toJql()).toBe('sprint IN (openSprints())');
+    expect(field('priority').notIn('Low', 'Trivial').toJql()).toBe(
+      'priority NOT IN ("Low", "Trivial")',
+    );
+    expect(field('sprint').in(JqlFunctions.openSprints()).toJql()).toBe(
+      'sprint IN (openSprints())',
+    );
   });
 
   it('rejects empty lists', () => {
@@ -36,24 +44,34 @@ describe('field()', () => {
   it('renders WAS / WAS NOT / WAS IN / WAS NOT IN / CHANGED', () => {
     expect(field('status').was('Resolved').toJql()).toBe('status WAS "Resolved"');
     expect(field('status').wasNot('Closed').toJql()).toBe('status WAS NOT "Closed"');
-    expect(field('status').wasIn(['Open', 'Reopened']).toJql()).toBe('status WAS IN ("Open", "Reopened")');
+    expect(field('status').wasIn(['Open', 'Reopened']).toJql()).toBe(
+      'status WAS IN ("Open", "Reopened")',
+    );
     expect(field('status').wasNotIn(['Done']).toJql()).toBe('status WAS NOT IN ("Done")');
     expect(field('assignee').changed().toJql()).toBe('assignee CHANGED');
   });
 
   it('renders history predicates', () => {
     expect(
-      field('status').changed({
-        from: 'Open',
-        to: 'Done',
-        by: 'pilmee',
-        before: '2026-01-01',
-        after: new Date(2025, 11, 1, 8, 30),
-      }).toJql(),
-    ).toBe('status CHANGED FROM "Open" TO "Done" BY "pilmee" BEFORE "2026-01-01" AFTER "2025-12-01 08:30"');
-    expect(field('status').was('Open', { on: '2026-01-01' }).toJql()).toBe('status WAS "Open" ON "2026-01-01"');
+      field('status')
+        .changed({
+          from: 'Open',
+          to: 'Done',
+          by: 'pilmee',
+          before: '2026-01-01',
+          after: new Date(2025, 11, 1, 8, 30),
+        })
+        .toJql(),
+    ).toBe(
+      'status CHANGED FROM "Open" TO "Done" BY "pilmee" BEFORE "2026-01-01" AFTER "2025-12-01 08:30"',
+    );
+    expect(field('status').was('Open', { on: '2026-01-01' }).toJql()).toBe(
+      'status WAS "Open" ON "2026-01-01"',
+    );
     expect(
-      field('status').wasIn(['Open'], { during: ['2026-01-01', '2026-02-01'] }).toJql(),
+      field('status')
+        .wasIn(['Open'], { during: ['2026-01-01', '2026-02-01'] })
+        .toJql(),
     ).toBe('status WAS IN ("Open") DURING ("2026-01-01", "2026-02-01")');
   });
 
@@ -72,15 +90,18 @@ describe('and / or / not', () => {
   it('joins clauses and parenthesizes mixed logical nesting', () => {
     expect(and(field('a').eq(1), field('b').eq(2)).toJql()).toBe('a = 1 AND b = 2');
     expect(or(field('a').eq(1), field('b').eq(2)).toJql()).toBe('a = 1 OR b = 2');
-    expect(and(field('a').eq(1), or(field('b').eq(2), field('c').eq(3))).toJql())
-      .toBe('a = 1 AND (b = 2 OR c = 3)');
-    expect(or(and(field('a').eq(1), field('b').eq(2)), field('c').eq(3)).toJql())
-      .toBe('(a = 1 AND b = 2) OR c = 3');
+    expect(and(field('a').eq(1), or(field('b').eq(2), field('c').eq(3))).toJql()).toBe(
+      'a = 1 AND (b = 2 OR c = 3)',
+    );
+    expect(or(and(field('a').eq(1), field('b').eq(2)), field('c').eq(3)).toJql()).toBe(
+      '(a = 1 AND b = 2) OR c = 3',
+    );
   });
 
   it('flattens same-operator nesting without redundant parens', () => {
-    expect(and(and(field('a').eq(1), field('b').eq(2)), field('c').eq(3)).toJql())
-      .toBe('a = 1 AND b = 2 AND c = 3');
+    expect(and(and(field('a').eq(1), field('b').eq(2)), field('c').eq(3)).toJql()).toBe(
+      'a = 1 AND b = 2 AND c = 3',
+    );
   });
 
   it('parenthesizes raw fragments and plain strings when combined', () => {
@@ -125,12 +146,19 @@ describe('jql() builder', () => {
 
   it('chains bound-field conditions with AND', () => {
     const query = jql()
-      .field('project').eq('OPS')
-      .field('status').in('Open', 'In Progress')
-      .field('assignee').eq(JqlFunctions.currentUser())
-      .field('updated').gte('-7d')
+      .field('project')
+      .eq('OPS')
+      .field('status')
+      .in('Open', 'In Progress')
+      .field('assignee')
+      .eq(JqlFunctions.currentUser())
+      .field('updated')
+      .gte('-7d')
       .build();
-    expect(query).toBe('project = "OPS" AND status IN ("Open", "In Progress") AND assignee = currentUser() AND updated >= "-7d"');
+
+    expect(query).toBe(
+      'project = "OPS" AND status IN ("Open", "In Progress") AND assignee = currentUser() AND updated >= "-7d"',
+    );
   });
 
   it('supports every bound-field condition', () => {
@@ -155,16 +183,28 @@ describe('jql() builder', () => {
   });
 
   it('supports where/and/or with clauses, strings, and raw fragments', () => {
-    expect(jql().where(field('a').eq(1)).and(field('b').eq(2)).or(field('c').eq(3)).build())
-      .toBe('a = 1 AND b = 2 OR c = 3');
+    expect(jql().where(field('a').eq(1)).and(field('b').eq(2)).or(field('c').eq(3)).build()).toBe(
+      'a = 1 AND b = 2 OR c = 3',
+    );
     expect(jql().where('project = OPS').build()).toBe('project = OPS');
-    expect(jql().where('a = 1').and(raw('b = 2 OR c = 3')).build()).toBe('(a = 1) AND (b = 2 OR c = 3)');
+    expect(jql().where('a = 1').and(raw('b = 2 OR c = 3')).build()).toBe(
+      '(a = 1) AND (b = 2 OR c = 3)',
+    );
   });
 
   it('parenthesizes grouped clauses only when needed', () => {
-    expect(jql().where(or(field('a').eq(1), field('b').eq(2))).build()).toBe('a = 1 OR b = 2');
-    expect(jql().field('c').eq(3).where(or(field('a').eq(1), field('b').eq(2))).build())
-      .toBe('c = 3 AND (a = 1 OR b = 2)');
+    expect(
+      jql()
+        .where(or(field('a').eq(1), field('b').eq(2)))
+        .build(),
+    ).toBe('a = 1 OR b = 2');
+    expect(
+      jql()
+        .field('c')
+        .eq(3)
+        .where(or(field('a').eq(1), field('b').eq(2)))
+        .build(),
+    ).toBe('c = 3 AND (a = 1 OR b = 2)');
   });
 
   it('supports shorthand filters with one or many values', () => {
@@ -188,22 +228,25 @@ describe('jql() builder', () => {
   });
 
   it('renders ORDER BY with defaults and multiple sorts', () => {
-    expect(jql().project('OPS').orderBy('updated', 'DESC').orderBy('priority').build())
-      .toBe('project = "OPS" ORDER BY updated DESC, priority ASC');
+    expect(jql().project('OPS').orderBy('updated', 'DESC').orderBy('priority').build()).toBe(
+      'project = "OPS" ORDER BY updated DESC, priority ASC',
+    );
     expect(jql().orderBy('Epic Link').build()).toBe('ORDER BY "Epic Link" ASC');
   });
 
   it('stringifies via toString', () => {
     expect(String(jql().project('OPS'))).toBe('project = "OPS"');
-    expect(`${jql().status('Open')}`).toBe('status = "Open"');
+    expect(jql().status('Open').toString()).toBe('status = "Open"');
   });
 });
 
 describe('jql tagged template', () => {
   it('quotes and escapes interpolated strings', () => {
     const userInput = 'a "b" \\ c';
-    expect(jql`project = ${'OPS'} AND summary ~ ${userInput}`)
-      .toBe('project = "OPS" AND summary ~ "a \\"b\\" \\\\ c"');
+
+    expect(jql`project = ${'OPS'} AND summary ~ ${userInput}`).toBe(
+      'project = "OPS" AND summary ~ "a \\"b\\" \\\\ c"',
+    );
   });
 
   it('inserts numbers bare and formats dates', () => {
@@ -219,7 +262,9 @@ describe('jql tagged template', () => {
   it('inserts raw fragments, clauses, and builders verbatim', () => {
     expect(jql`assignee = ${JqlFunctions.currentUser()}`).toBe('assignee = currentUser()');
     expect(jql`${field('a').eq(1)} AND b = 2`).toBe('a = 1 AND b = 2');
-    expect(jql`(${jql().project('OPS')}) OR flagged = true`).toBe('(project = "OPS") OR flagged = true');
+    expect(jql`(${jql().project('OPS')}) OR flagged = true`).toBe(
+      '(project = "OPS") OR flagged = true',
+    );
   });
 
   it('trims surrounding whitespace', () => {

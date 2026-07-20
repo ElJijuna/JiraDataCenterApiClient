@@ -1,11 +1,11 @@
 import {
-  JQL_RESERVED_WORDS,
   escapeJqlString,
-  quoteJqlString,
-  needsJqlQuoting,
-  formatJqlField,
   formatJqlDate,
+  formatJqlField,
   formatJqlOperand,
+  JQL_RESERVED_WORDS,
+  needsJqlQuoting,
+  quoteJqlString,
 } from '../../src/jql/JqlEscape';
 import { raw } from '../../src/jql/JqlRaw';
 

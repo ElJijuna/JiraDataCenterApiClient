@@ -25,7 +25,22 @@ export interface JqlToken {
 
 const COMPARISON_OPERATORS = ['!=', '!~', '<=', '>=', '=', '~', '<', '>'];
 /** Characters that terminate a bare word. `[` and `]` stay inside words so `cf[10010]` is one token. */
-const WORD_TERMINATORS = new Set([' ', '\t', '\n', '\r', '"', "'", '=', '!', '~', '<', '>', '(', ')', ',']);
+const WORD_TERMINATORS = new Set([
+  ' ',
+  '\t',
+  '\n',
+  '\r',
+  '"',
+  "'",
+  '=',
+  '!',
+  '~',
+  '<',
+  '>',
+  '(',
+  ')',
+  ',',
+]);
 
 /**
  * Splits a JQL query into tokens. Never throws: lexical problems
@@ -37,6 +52,7 @@ const WORD_TERMINATORS = new Set([' ', '\t', '\n', '\r', '"', "'", '=', '!', '~'
  */
 export function tokenizeJql(query: string): JqlToken[] {
   const tokens: JqlToken[] = [];
+
   let index = 0;
 
   while (index < query.length) {
@@ -49,21 +65,27 @@ export function tokenizeJql(query: string): JqlToken[] {
 
     if (char === '"' || char === "'") {
       const start = index;
+
       index += 1;
       let closed = false;
+
       while (index < query.length) {
         if (query[index] === '\\') {
           index += 2;
           continue;
         }
+
         if (query[index] === char) {
           index += 1;
           closed = true;
           break;
         }
+
         index += 1;
       }
+
       const end = Math.min(index, query.length);
+
       if (closed) {
         tokens.push({ type: 'string', value: query.slice(start, end), start, end });
       } else {
@@ -76,6 +98,7 @@ export function tokenizeJql(query: string): JqlToken[] {
         });
         index = query.length;
       }
+
       continue;
     }
 
@@ -84,11 +107,13 @@ export function tokenizeJql(query: string): JqlToken[] {
       index += 1;
       continue;
     }
+
     if (char === ')') {
       tokens.push({ type: 'rparen', value: ')', start: index, end: index + 1 });
       index += 1;
       continue;
     }
+
     if (char === ',') {
       tokens.push({ type: 'comma', value: ',', start: index, end: index + 1 });
       index += 1;
@@ -96,8 +121,14 @@ export function tokenizeJql(query: string): JqlToken[] {
     }
 
     const operator = COMPARISON_OPERATORS.find((op) => query.startsWith(op, index));
+
     if (operator) {
-      tokens.push({ type: 'operator', value: operator, start: index, end: index + operator.length });
+      tokens.push({
+        type: 'operator',
+        value: operator,
+        start: index,
+        end: index + operator.length,
+      });
       index += operator.length;
       continue;
     }
@@ -115,11 +146,14 @@ export function tokenizeJql(query: string): JqlToken[] {
     }
 
     const start = index;
+
     while (index < query.length && !WORD_TERMINATORS.has(query[index])) {
       index += 1;
     }
+
     const value = query.slice(start, index);
     const type: JqlTokenType = /^-?\d+(\.\d+)?$/.test(value) ? 'number' : 'word';
+
     tokens.push({ type, value, start, end: index });
   }
 
